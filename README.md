@@ -17,8 +17,21 @@
 ## 安装与使用
 
 ```bash
-apt update && apt install -y curl wget git ca-certificates && bash <(curl -fsSL https://raw.githubusercontent.com/7o1ove/xray-manager/main/install.sh)
+apt update
+apt install -y curl wget git ca-certificates
+
+curl -fsSL \
+  --proto '=https' \
+  --tlsv1.2 \
+  -o /tmp/xray-manager-install.sh \
+  https://raw.githubusercontent.com/7o1ove/xray-manager/main/install.sh
+
+sha256sum /tmp/xray-manager-install.sh
+less /tmp/xray-manager-install.sh
+bash /tmp/xray-manager-install.sh
 ```
+
+不建议使用 `curl install.sh | bash` 或 `bash <(curl ...)` 这类无法先审阅内容的安装方式。公开给他人使用时，请让用户先下载脚本、查看内容和哈希，再手动执行。
 
 安装完成后，可以直接输入：
 
