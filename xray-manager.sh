@@ -371,6 +371,7 @@ ssh_menu(){
         menu_item "0" "返回"
         echo
         read -r -p "$(prompt_text "请选择: ")" choice
+        choice=${choice:-0}
 
         case "$choice" in
             1) set_ssh_port ;;
@@ -452,6 +453,7 @@ ufw_menu(){
         menu_item "0" "返回"
         echo
         read -r -p "$(prompt_text "请选择: ")" choice
+        choice=${choice:-0}
 
         case "$choice" in
             1) install_ufw ;;
@@ -521,6 +523,7 @@ fail2ban_menu(){
         menu_item "0" "返回"
         echo
         read -r -p "$(prompt_text "请选择: ")" choice
+        choice=${choice:-0}
 
         case "$choice" in
             1) install_fail2ban ;;
@@ -585,6 +588,7 @@ swap_menu(){
         menu_item "0" "返回"
         echo
         read -r -p "$(prompt_text "请选择: ")" choice
+        choice=${choice:-0}
 
         case "$choice" in
             1) install_swap ;;
@@ -683,6 +687,7 @@ ipv6_menu(){
         menu_item "0" "返回"
         echo
         read -r -p "$(prompt_text "请选择: ")" choice
+        choice=${choice:-0}
 
         case "$choice" in
             1) enable_ipv6 ;;
@@ -718,6 +723,7 @@ tools_menu(){
         menu_item "0" "返回主菜单"
         echo
         read -r -p "$(prompt_text "请选择: ")" choice
+        choice=${choice:-0}
 
         case "$choice" in
             1) run_vps_test ;;
@@ -762,6 +768,7 @@ main_menu(){
         echo
 
         read -r -p "$(prompt_text "请选择: ")" choice
+        choice=${choice:-0}
 
         case "$choice" in
             1) install_xray ;;
