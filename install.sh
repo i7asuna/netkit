@@ -2,23 +2,44 @@
 
 set -e
 
-echo "==> Updating system..."
-apt update -y
+REPO="https://github.com/7o1ove/Xray-manager.git"
+INSTALL_DIR="/opt/Xray-manager"
 
-echo "==> Installing dependencies..."
-apt install -y curl git
+echo "=================================="
+echo "   Xray-manager Installer"
+echo "=================================="
 
-echo "==> Cloning Xray-manager..."
-
-if [ -d "Xray-manager" ]; then
-  rm -rf Xray-manager
+# 1. 检查 root
+if [ "$(id -u)" -ne 0 ]; then
+    echo "❌ Please run as root"
+    exit 1
 fi
 
-git clone https://github.com/7o1ove/Xray-manager.git
+# 2. 更新系统 & 安装依赖
+echo "==> Installing dependencies..."
+apt update -y
+apt install -y git curl
 
-cd Xray-manager
+# 3. 清理旧目录
+if [ -d "$INSTALL_DIR" ]; then
+    echo "==> Removing old installation..."
+    rm -rf "$INSTALL_DIR"
+fi
 
+# 4. clone 项目
+echo "==> Cloning repository..."
+git clone "$REPO" "$INSTALL_DIR"
+
+cd "$INSTALL_DIR"
+
+# 5. 授权脚本执行权限
 chmod +x *.sh
+chmod +x core/*.sh system/*.sh
 
-echo "==> Installation completed."
-echo "Run: bash xray-manager.sh"
+# 6. 启动主程序
+echo "=================================="
+echo "Installation completed!"
+echo "Starting Xray-manager..."
+echo "=================================="
+
+bash xray-manager.sh
