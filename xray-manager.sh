@@ -165,9 +165,15 @@ show_client_info(){
     section "VLESS Reality" "$CYAN"
     echo
     if [[ -f "${CLIENT_DIR}/vless.txt" ]]; then
-        while IFS= read -r line; do
+        sed '/^Mihomo \/ Clash:/,$d' "${CLIENT_DIR}/vless.txt" | while IFS= read -r line; do
             value "$line"
-        done < "${CLIENT_DIR}/vless.txt"
+        done
+
+        if [[ -f "${CLIENT_DIR}/vless-mihomo.yaml" ]]; then
+            echo
+            label "Mihomo / Clash:"
+            cat "${CLIENT_DIR}/vless-mihomo.yaml"
+        fi
     else
         warning "未配置"
     fi
@@ -176,9 +182,15 @@ show_client_info(){
     section "Shadowsocks" "$CYAN"
     echo
     if [[ -f "${CLIENT_DIR}/shadowsocks.txt" ]]; then
-        while IFS= read -r line; do
+        sed '/^Mihomo \/ Clash:/,$d' "${CLIENT_DIR}/shadowsocks.txt" | while IFS= read -r line; do
             value "$line"
-        done < "${CLIENT_DIR}/shadowsocks.txt"
+        done
+
+        if [[ -f "${CLIENT_DIR}/shadowsocks-mihomo.yaml" ]]; then
+            echo
+            label "Mihomo / Clash:"
+            cat "${CLIENT_DIR}/shadowsocks-mihomo.yaml"
+        fi
     else
         warning "未配置"
     fi

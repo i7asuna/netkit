@@ -11,6 +11,7 @@ XRAY_DIR="/usr/local/etc/xray"
 
 PROTOCOL_CONFIG="${XRAY_DIR}/protocols/vless.json"
 CLIENT_FILE="${XRAY_DIR}/client/vless.txt"
+MIHOMO_FILE="${XRAY_DIR}/client/vless-mihomo.yaml"
 
 FLOW="xtls-rprx-vision"
 FINGERPRINT="chrome"
@@ -176,11 +177,7 @@ fi
 
 VLESS_LINK="vless://${UUID}@${SERVER_IP}:${PORT}?encryption=none&flow=${FLOW}&security=reality&type=tcp&sni=${SNI}&fp=${FINGERPRINT}&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&packetEncoding=xudp"
 
-cat > "$CLIENT_FILE" <<EOF
-VLESS Link:
-${VLESS_LINK}
-
-Mihomo / Clash:
+cat > "$MIHOMO_FILE" <<EOF
 - name: VLESS Reality
   type: vless
   server: ${SERVER_IP}
@@ -198,6 +195,14 @@ Mihomo / Clash:
     short-id: ${SHORT_ID}
 EOF
 
+{
+    echo "VLESS Link:"
+    echo "$VLESS_LINK"
+    echo
+    echo "Mihomo / Clash:"
+    cat "$MIHOMO_FILE"
+} > "$CLIENT_FILE"
+
 echo
 section "VLESS Link" "$GREEN"
 echo
@@ -212,9 +217,10 @@ echo
 label " 节点信息文件"
 path_value "$CLIENT_FILE"
 echo
+label " Mihomo / Clash config file"
+path_value "$MIHOMO_FILE"
+echo
 section "Mihomo / Clash" "$GREEN"
 echo
-sed -n '/^Mihomo \/ Clash:/,$p' "$CLIENT_FILE" | tail -n +2 | while IFS= read -r line; do
-    value "$line"
-done
+cat "$MIHOMO_FILE"
 echo
