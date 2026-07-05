@@ -17,7 +17,7 @@
 ## 安装与使用
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/7o1ove/xray-manager/main/install.sh)
+apt update && apt install -y curl wget git ca-certificates && bash <(curl -fsSL https://raw.githubusercontent.com/7o1ove/xray-manager/main/install.sh)
 ```
 
 安装完成后，可以直接输入：
