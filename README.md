@@ -45,7 +45,7 @@ apt update && apt install -y curl wget git ca-certificates && bash <(curl -fsSL 
   reboot
   ```
 
-- [NodeQuality](https://run.NodeQuality.com)  
+- [NodeQuality](https://github.com/oneclickvirt/NodeQuality)  
   用于 VPS 质量与网络测试。
 
 这些脚本并非本项目原创，也不包含在本仓库源码中。本项目只是根据用户选择在线调用它们。使用前建议自行查看对应项目源码、说明和许可证，并确认脚本内容符合自己的使用需求。
