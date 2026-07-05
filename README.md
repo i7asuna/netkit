@@ -17,19 +17,8 @@
 ## 安装与使用
 
 ```bash
-apt update
-apt install -y curl wget git ca-certificates
-
-curl -fsSL \
-  --proto '=https' \
-  --tlsv1.2 \
-  -o /tmp/xray-manager-install.sh \
-  https://raw.githubusercontent.com/7o1ove/xray-manager/main/install.sh
-
-bash /tmp/xray-manager-install.sh
+apt update && apt install -y curl wget git ca-certificates && bash <(curl -fsSL https://raw.githubusercontent.com/7o1ove/xray-manager/main/install.sh)
 ```
-
-出于安全考虑，本项目不提供 `curl install.sh | bash` 或 `bash <(curl ...)` 这类把下载内容直接交给 shell 执行的一键命令。上面的方式会先把安装脚本保存到本地，再执行脚本。
 
 安装完成后，可以直接输入：
 

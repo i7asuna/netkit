@@ -6,8 +6,6 @@ SCRIPT_DIR="/root/xray-manager"
 
 # shellcheck source=/root/xray-manager/lib/output.sh
 source "${SCRIPT_DIR}/lib/output.sh"
-# shellcheck source=/root/xray-manager/lib/remote.sh
-source "${SCRIPT_DIR}/lib/remote.sh"
 
 INSTALL_SCRIPT="${SCRIPT_DIR}/core/xray-core.sh"
 VLESS_SCRIPT="${SCRIPT_DIR}/core/vless-reality.sh"
@@ -257,10 +255,10 @@ update_xray(){
     header
     warning "正在更新 Xray Core..."
 
-    run_remote_script \
-        "xray-install-release" \
-        "https://github.com/XTLS/Xray-install/raw/main/install-release.sh" \
-        install
+    bash <(
+        curl -fsSL -L \
+        https://github.com/XTLS/Xray-install/raw/main/install-release.sh
+    ) install
 
     echo
     if command -v xray >/dev/null 2>&1; then
@@ -282,9 +280,7 @@ run_vps_test(){
 
     apt update
     apt install wget curl -y
-    run_remote_script \
-        "nodequality" \
-        "https://run.NodeQuality.com"
+    bash <(curl -sL https://run.NodeQuality.com)
     exit 0
 }
 
@@ -300,10 +296,8 @@ dd_debian(){
 
     apt update
     apt install wget curl -y
-    run_remote_script \
-        "reinstall" \
-        "https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh" \
-        debian
+    curl -O https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh
+    bash reinstall.sh debian
     exit 0
 }
 

@@ -6,8 +6,6 @@ SCRIPT_DIR="/root/xray-manager"
 
 # shellcheck source=/root/xray-manager/lib/output.sh
 source "${SCRIPT_DIR}/lib/output.sh"
-# shellcheck source=/root/xray-manager/lib/remote.sh
-source "${SCRIPT_DIR}/lib/remote.sh"
 
 XRAY_DIR="/usr/local/etc/xray"
 
@@ -23,10 +21,10 @@ apt install -y \
 
 info "Installing Xray..."
 
-run_remote_script \
-    "xray-install-release" \
-    "https://github.com/XTLS/Xray-install/raw/main/install-release.sh" \
-    install
+bash <(
+    curl -fsSL -L \
+    https://github.com/XTLS/Xray-install/raw/main/install-release.sh
+) install
 
 info "Checking Xray..."
 
