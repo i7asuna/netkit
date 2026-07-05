@@ -31,7 +31,7 @@ less /tmp/xray-manager-install.sh
 bash /tmp/xray-manager-install.sh
 ```
 
-不建议使用 `curl install.sh | bash` 或 `bash <(curl ...)` 这类无法先审阅内容的安装方式。公开给他人使用时，请让用户先下载脚本、查看内容和哈希，再手动执行。
+出于安全考虑，本项目不提供 `curl install.sh | bash` 或 `bash <(curl ...)` 这类无法先审阅内容的一键安装命令。建议先下载脚本，确认内容和哈希后，再手动执行。
 
 安装完成后，可以直接输入：
 
