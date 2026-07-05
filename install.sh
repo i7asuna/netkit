@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-REPO="https://github.com/你的用户名/xray-manager.git"
+REPO="https://github.com/7o1ove/xray-manager.git"
 INSTALL_DIR="/root/xray-manager"
 
 echo "=================================="
