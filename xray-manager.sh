@@ -45,6 +45,12 @@ valid_port(){
     [[ "$1" =~ ^[0-9]+$ ]] && [[ "$1" -ge 1 ]] && [[ "$1" -le 65535 ]]
 }
 
+split_items(){
+    local input="$1"
+    input=${input//,/ }
+    printf '%s\n' $input
+}
+
 current_ssh_port(){
     awk '
         /^[[:space:]]*Port[[:space:]]+[0-9]+/ {
@@ -439,6 +445,88 @@ ufw_delete_port(){
     pause
 }
 
+ufw_batch_add_port(){
+    header
+    local input
+    local port
+
+    read -r -p "$(prompt_text "请输入要允许的端口（多个用空格或逗号分隔）: ")" input
+    [[ -z "$input" ]] && error "端口不能为空。" && pause && return
+
+    for port in $(split_items "$input"); do
+        valid_port "$port" || { error "端口无效: ${port}"; pause; return; }
+    done
+
+    for port in $(split_items "$input"); do
+        ufw allow "${port}/tcp"
+        ufw allow "${port}/udp"
+        success "已允许端口: ${port}/tcp 和 ${port}/udp"
+    done
+
+    pause
+}
+
+ufw_batch_delete_port(){
+    header
+    local input
+    local port
+
+    read -r -p "$(prompt_text "请输入要删除的端口（多个用空格或逗号分隔）: ")" input
+    [[ -z "$input" ]] && error "端口不能为空。" && pause && return
+
+    for port in $(split_items "$input"); do
+        valid_port "$port" || { error "端口无效: ${port}"; pause; return; }
+    done
+
+    for port in $(split_items "$input"); do
+        ufw --force delete allow "${port}/tcp" || true
+        ufw --force delete allow "${port}/udp" || true
+        success "已删除端口规则: ${port}/tcp 和 ${port}/udp"
+    done
+
+    pause
+}
+
+ufw_batch_add_ip(){
+    header
+    local input
+    local ip
+
+    read -r -p "$(prompt_text "请输入要允许的 IP/CIDR（多个用空格或逗号分隔）: ")" input
+    [[ -z "$input" ]] && error "IP 不能为空。" && pause && return
+
+    for ip in $(split_items "$input"); do
+        [[ "$ip" =~ ^[0-9]+$ ]] && error "这是端口，不是 IP: ${ip}" && pause && return
+    done
+
+    for ip in $(split_items "$input"); do
+        ufw allow from "$ip"
+        success "已允许 IP/CIDR: ${ip}"
+    done
+
+    pause
+}
+
+ufw_batch_delete_ip(){
+    header
+    local input
+    local ip
+
+    read -r -p "$(prompt_text "请输入要删除的 IP/CIDR（多个用空格或逗号分隔）: ")" input
+    [[ -z "$input" ]] && error "IP 不能为空。" && pause && return
+
+    for ip in $(split_items "$input"); do
+        [[ "$ip" =~ ^[0-9]+$ ]] && error "这是端口，不是 IP: ${ip}" && pause && return
+    done
+
+    for ip in $(split_items "$input"); do
+        ufw --force delete allow from "$ip" || true
+        success "已删除 IP/CIDR 规则: ${ip}"
+    done
+
+    pause
+}
+
 restart_ufw(){
     header
     ufw --force reload
@@ -474,10 +562,10 @@ ufw_menu(){
     while true; do
         header
         menu_item "1" "安装 UFW"
-        menu_item "2" "开放端口"
-        menu_item "3" "删除端口"
-        menu_item "4" "允许 IP"
-        menu_item "5" "删除 IP"
+        menu_item "2" "批量允许端口"
+        menu_item "3" "批量删除端口"
+        menu_item "4" "批量允许 IP"
+        menu_item "5" "批量删除 IP"
         menu_item "6" "重启 UFW"
         menu_item "7" "查看 UFW 状态"
         menu_item "8" "卸载 UFW"
@@ -489,10 +577,10 @@ ufw_menu(){
 
         case "$choice" in
             1) install_ufw ;;
-            2) ufw_add_port ;;
-            3) ufw_delete_port ;;
-            4) ufw_add_ip ;;
-            5) ufw_delete_ip ;;
+            2) ufw_batch_add_port ;;
+            3) ufw_batch_delete_port ;;
+            4) ufw_batch_add_ip ;;
+            5) ufw_batch_delete_ip ;;
             6) restart_ufw ;;
             7) show_ufw_status ;;
             8) uninstall_ufw ;;
@@ -752,7 +840,7 @@ tools_menu(){
         menu_item "7" "时区调整"
         menu_item "8" "系统调优"
         menu_item "9" "IPv6 管理"
-        menu_item "66" "清理过期软件包"
+        menu_item "10" "清理过期软件包"
         echo
         menu_item "0" "返回主菜单"
         echo
@@ -769,7 +857,7 @@ tools_menu(){
             7) set_timezone ;;
             8) system_tuning ;;
             9) ipv6_menu ;;
-            66) apt_autoremove_cleanup ;;
+            10) apt_autoremove_cleanup ;;
             0) return ;;
             *) error "无效选择。"; pause ;;
         esac
@@ -794,7 +882,7 @@ main_menu(){
         echo
         divider "$CYAN" "-"
         echo
-        menu_item "10" "工具箱"
+        menu_item "66" "工具箱"
         echo
         divider "$CYAN" "-"
         echo
@@ -814,7 +902,7 @@ main_menu(){
             7) show_status ;;
             8) restart_xray ;;
             9) update_xray ;;
-            10) tools_menu ;;
+            66) tools_menu ;;
             0) clear; exit 0 ;;
             *) error "无效选择。"; pause ;;
         esac
