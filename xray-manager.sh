@@ -82,23 +82,15 @@ header(){
 
 
 run_script(){
+    local file="$1"
 
-    if [[ ! -r "$1" ]]; then
-
-        header
-
-        error "Script not found."
-
-        echo "$1"
-
+    if [[ ! -f "$file" ]]; then
+        echo "[ERROR] Script not found: $file"
         pause
-
-        return
-
+        return 1
     fi
 
-    bash "$1"
-
+    bash "$file"
 }
 
 ########################################
