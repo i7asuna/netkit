@@ -768,7 +768,7 @@ EOF
 
     cat > /etc/apt/apt.conf.d/51unattended-upgrades-reboot <<'EOF'
 Unattended-Upgrade::Automatic-Reboot "true";
-Unattended-Upgrade::Automatic-Reboot-Time "04:00";
+Unattended-Upgrade::Automatic-Reboot-Time "03:30";
 EOF
 
     mkdir -p /etc/systemd/system/apt-daily.timer.d
@@ -784,7 +784,7 @@ EOF
     cat > /etc/systemd/system/apt-daily-upgrade.timer.d/override.conf <<'EOF'
 [Timer]
 OnCalendar=
-OnCalendar=*-*-* 03:30:00
+OnCalendar=*-*-* 03:15:00
 RandomizedDelaySec=0
 Persistent=true
 EOF
@@ -839,8 +839,8 @@ EOF
     kv "tcp_mtu_probing               :" "$(sysctl -n net.ipv4.tcp_mtu_probing 2>/dev/null || echo unknown)"
     kv "swappiness                    :" "$(sysctl -n vm.swappiness 2>/dev/null || echo unknown)"
     kv "apt update timer              :" "03:00"
-    kv "apt upgrade timer             :" "03:30"
-    kv "auto reboot if needed         :" "04:00"
+    kv "apt upgrade timer             :" "03:15"
+    kv "auto reboot if needed         :" "03:30"
 
     pause
 }
