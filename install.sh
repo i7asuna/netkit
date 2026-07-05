@@ -53,7 +53,32 @@ APT::Periodic::Unattended-Upgrade "1";
 APT::Periodic::AutocleanInterval "7";
 EOF
 
+    cat > /etc/apt/apt.conf.d/51unattended-upgrades-reboot <<'EOF'
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "03:30";
+EOF
+
+    mkdir -p /etc/systemd/system/apt-daily.timer.d
+    cat > /etc/systemd/system/apt-daily.timer.d/override.conf <<'EOF'
+[Timer]
+OnCalendar=
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=0
+Persistent=true
+EOF
+
+    mkdir -p /etc/systemd/system/apt-daily-upgrade.timer.d
+    cat > /etc/systemd/system/apt-daily-upgrade.timer.d/override.conf <<'EOF'
+[Timer]
+OnCalendar=
+OnCalendar=*-*-* 03:10:00
+RandomizedDelaySec=0
+Persistent=true
+EOF
+
     dpkg-reconfigure -f noninteractive unattended-upgrades >/dev/null 2>&1 || true
+    systemctl daemon-reload
+    systemctl enable --now apt-daily.timer apt-daily-upgrade.timer
 }
 
 REPO="https://github.com/7o1ove/xray-manager.git"
