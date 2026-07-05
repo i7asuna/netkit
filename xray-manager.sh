@@ -6,7 +6,7 @@ set -Eeuo pipefail
 # Variables
 ########################################
 
-SCRIPT_DIR="/root/xray-manager"
+SCRIPT_DIR="/root/Xray-manager"
 
 SYSTEM_SCRIPT="${SCRIPT_DIR}/system/01-system.sh"
 INSTALL_SCRIPT="${SCRIPT_DIR}/core/02-xray-core.sh"
