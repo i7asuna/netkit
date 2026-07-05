@@ -10,8 +10,8 @@ SCRIPT_DIR="/root/xray-manager"
 
 SYSTEM_SCRIPT="${SCRIPT_DIR}/system/system.sh"
 INSTALL_SCRIPT="${SCRIPT_DIR}/core/xray-core.sh"
-VLESS_SCRIPT="${SCRIPT_DIR}/core/vless.sh"
-SS_SCRIPT="${SCRIPT_DIR}/core/04-shadowsocks.sh"
+VLESS_SCRIPT="${SCRIPT_DIR}/vless.sh"
+SS_SCRIPT="${SCRIPT_DIR}/shadowsocks.sh"
 
 CONFIG_DIR="/usr/local/etc/xray"
 CLIENT_DIR="${CONFIG_DIR}/client"
@@ -165,12 +165,14 @@ update_xray(){
 configure_vless(){
 
     run_script "$VLESS_SCRIPT"
+    pause
 
 }
 
 configure_shadowsocks(){
 
     run_script "$SS_SCRIPT"
+    pause
 
 }
 

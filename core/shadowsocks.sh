@@ -12,28 +12,17 @@ METHOD="2022-blake3-aes-256-gcm"
 echo "==> Checking Xray..."
 
 if command -v xray >/dev/null 2>&1; then
-
     XRAY_BIN=$(command -v xray)
-
 elif [[ -x /usr/local/bin/xray ]]; then
-
     XRAY_BIN="/usr/local/bin/xray"
-
 elif [[ -x /usr/bin/xray ]]; then
-
     XRAY_BIN="/usr/bin/xray"
-
 else
-
     echo "Please install Xray Core first."
-
     exit 1
-
 fi
 
-mkdir -p "${XRAY_DIR}"
-mkdir -p "${XRAY_DIR}/protocols"
-mkdir -p "${XRAY_DIR}/client"
+mkdir -p "${XRAY_DIR}/protocols" "${XRAY_DIR}/client"
 
 SERVER_IP=$(
     curl -4 -fsSL https://api.ipify.org ||
@@ -41,18 +30,13 @@ SERVER_IP=$(
     echo "Unknown"
 )
 
-read -rp "Port (default random): " PORT
+read -rp "Port (press Enter for random): " PORT
 
 if [[ -z "$PORT" ]]; then
-
     while :; do
-
         PORT=$(shuf -i 30000-60000 -n1)
-
         ss -ltnH | awk '{print $4}' | grep -q ":${PORT}$" || break
-
     done
-
 fi
 
 echo "==> Generating Password..."
@@ -71,6 +55,12 @@ cat > "$PROTOCOL_CONFIG" <<EOF
     "password": "$PASSWORD",
     "network": "tcp,udp"
   },
+  "streamSettings": {
+    "sockopt": {
+      "tcpFastOpen": true,
+      "tcpNoDelay": true
+    }
+  },
   "sniffing": {
     "enabled": true,
     "destOverride": [
@@ -79,54 +69,41 @@ cat > "$PROTOCOL_CONFIG" <<EOF
       "quic"
     ],
     "routeOnly": true
-  },
-  "sockopt": {
-    "tcpFastOpen": true,
-    "tcpNoDelay": true
   }
 }
 EOF
 
-
 echo "==> Building configuration..."
-if ! bash /root/xray-manager/build_config.sh; then
-			exit 1
-if
+if ! bash /root/xray-manager/config/build_config.sh; then
+    exit 1
+fi
 
 echo "==> Updating firewall..."
 
 if command -v ufw >/dev/null 2>&1; then
-
     ufw status | grep -q "${PORT}/tcp" || \
     ufw allow "${PORT}/tcp" comment "Xray Shadowsocks TCP" >/dev/null
 
     ufw status | grep -q "${PORT}/udp" || \
     ufw allow "${PORT}/udp" comment "Xray Shadowsocks UDP" >/dev/null
-
 fi
 
 echo "==> Starting Xray..."
 
 systemctl restart xray
-
 sleep 1
 
 if ! systemctl is-active --quiet xray; then
-
     echo
     echo "=========================================="
     echo " Xray failed to start"
     echo "=========================================="
     echo
-
     journalctl -u xray -n 20 --no-pager
-
     exit 1
-
 fi
 
 SS_BASE64=$(printf "%s:%s" "$METHOD" "$PASSWORD" | base64 | tr -d '\n')
-
 SS_LINK="ss://${SS_BASE64}@${SERVER_IP}:${PORT}"
 
 echo "$SS_LINK" > "$CLIENT_FILE"
@@ -143,7 +120,7 @@ echo " Password  : $PASSWORD"
 echo
 echo "================== SS Link =================="
 echo
-echo " ss:$SS_LINK"
+echo " $SS_LINK"
 echo
 echo " Config File"
 echo " ${XRAY_DIR}/config.json"
