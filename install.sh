@@ -41,46 +41,6 @@ warning(){
     echo -e "${YELLOW}$1${RESET}"
 }
 
-configure_debian_auto_updates(){
-    info "Configuring Debian automatic updates..."
-
-    apt update
-    apt install -y unattended-upgrades apt-listchanges
-
-    cat > /etc/apt/apt.conf.d/20auto-upgrades <<'EOF'
-APT::Periodic::Update-Package-Lists "1";
-APT::Periodic::Unattended-Upgrade "1";
-APT::Periodic::AutocleanInterval "7";
-EOF
-
-    cat > /etc/apt/apt.conf.d/51unattended-upgrades-reboot <<'EOF'
-Unattended-Upgrade::Automatic-Reboot "true";
-Unattended-Upgrade::Automatic-Reboot-Time "03:30";
-EOF
-
-    mkdir -p /etc/systemd/system/apt-daily.timer.d
-    cat > /etc/systemd/system/apt-daily.timer.d/override.conf <<'EOF'
-[Timer]
-OnCalendar=
-OnCalendar=*-*-* 03:00:00
-RandomizedDelaySec=0
-Persistent=true
-EOF
-
-    mkdir -p /etc/systemd/system/apt-daily-upgrade.timer.d
-    cat > /etc/systemd/system/apt-daily-upgrade.timer.d/override.conf <<'EOF'
-[Timer]
-OnCalendar=
-OnCalendar=*-*-* 03:10:00
-RandomizedDelaySec=0
-Persistent=true
-EOF
-
-    dpkg-reconfigure -f noninteractive unattended-upgrades >/dev/null 2>&1 || true
-    systemctl daemon-reload
-    systemctl enable --now apt-daily.timer apt-daily-upgrade.timer
-}
-
 REPO="https://github.com/7o1ove/xray-manager.git"
 INSTALL_DIR="/root/xray-manager"
 COMMAND_NAME="7o1ove"
@@ -110,8 +70,6 @@ chmod +x core/*.sh 2>/dev/null || true
 chmod +x system/*.sh 2>/dev/null || true
 chmod +x config/*.sh 2>/dev/null || true
 chmod +x lib/*.sh 2>/dev/null || true
-
-configure_debian_auto_updates
 
 info "Creating global command: ${COMMAND_NAME}"
 

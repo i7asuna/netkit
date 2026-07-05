@@ -754,9 +754,51 @@ set_timezone(){
     pause
 }
 
+configure_auto_updates(){
+    info "正在配置系统自动更新..."
+
+    apt update
+    apt install -y unattended-upgrades apt-listchanges
+
+    cat > /etc/apt/apt.conf.d/20auto-upgrades <<'EOF'
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";
+EOF
+
+    cat > /etc/apt/apt.conf.d/51unattended-upgrades-reboot <<'EOF'
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "04:00";
+EOF
+
+    mkdir -p /etc/systemd/system/apt-daily.timer.d
+    cat > /etc/systemd/system/apt-daily.timer.d/override.conf <<'EOF'
+[Timer]
+OnCalendar=
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=0
+Persistent=true
+EOF
+
+    mkdir -p /etc/systemd/system/apt-daily-upgrade.timer.d
+    cat > /etc/systemd/system/apt-daily-upgrade.timer.d/override.conf <<'EOF'
+[Timer]
+OnCalendar=
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=0
+Persistent=true
+EOF
+
+    dpkg-reconfigure -f noninteractive unattended-upgrades >/dev/null 2>&1 || true
+    systemctl daemon-reload
+    systemctl enable --now apt-daily.timer apt-daily-upgrade.timer
+}
+
 system_tuning(){
     header
     info "正在应用系统调优..."
+
+    configure_auto_updates
 
     modprobe nf_conntrack 2>/dev/null || true
     echo "nf_conntrack" > /etc/modules-load.d/nf_conntrack.conf
@@ -796,6 +838,9 @@ EOF
     kv "tcp_ecn                       :" "$(sysctl -n net.ipv4.tcp_ecn 2>/dev/null || echo unknown)"
     kv "tcp_mtu_probing               :" "$(sysctl -n net.ipv4.tcp_mtu_probing 2>/dev/null || echo unknown)"
     kv "swappiness                    :" "$(sysctl -n vm.swappiness 2>/dev/null || echo unknown)"
+    kv "apt update timer              :" "03:00"
+    kv "apt upgrade timer             :" "03:30"
+    kv "auto reboot if needed         :" "04:00"
 
     pause
 }
