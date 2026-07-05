@@ -752,7 +752,7 @@ tools_menu(){
         menu_item "7" "时区调整"
         menu_item "8" "系统调优"
         menu_item "9" "IPv6 管理"
-        menu_item "10" "清理过期软件包"
+        menu_item "66" "清理过期软件包"
         echo
         menu_item "0" "返回主菜单"
         echo
@@ -769,7 +769,7 @@ tools_menu(){
             7) set_timezone ;;
             8) system_tuning ;;
             9) ipv6_menu ;;
-            10) apt_autoremove_cleanup ;;
+            66) apt_autoremove_cleanup ;;
             0) return ;;
             *) error "无效选择。"; pause ;;
         esac
