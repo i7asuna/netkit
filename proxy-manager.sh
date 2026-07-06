@@ -22,9 +22,11 @@ SWAPFILE="/swapfile"
 TIMEZONE="Asia/Hong_Kong"
 
 header(){
+    local title="${1:-Proxy Manager}"
+
     echo
     divider "$CYAN"
-    center_line "Proxy Manager" "$WHITE"
+    center_line "$title" "$WHITE"
     divider "$CYAN"
 }
 
@@ -153,7 +155,7 @@ configure_shadowsocks(){
 }
 
 uninstall_vless(){
-    header
+    header "卸载 VLESS Reality"
     warning "正在卸载 VLESS Reality..."
     rm -f "${PROTOCOL_DIR}/vless.json" "${CLIENT_DIR}/vless.txt"
     rebuild_or_stop_xray
@@ -161,7 +163,7 @@ uninstall_vless(){
 }
 
 uninstall_shadowsocks(){
-    header
+    header "卸载 Shadowsocks"
     warning "正在卸载 Shadowsocks..."
     rm -f "${PROTOCOL_DIR}/shadowsocks.json" "${CLIENT_DIR}/shadowsocks.txt"
     rebuild_or_stop_xray
@@ -169,7 +171,7 @@ uninstall_shadowsocks(){
 }
 
 show_client_info(){
-    header
+    header "节点信息"
 
     section "VLESS Reality" "$YELLOW"
     echo
@@ -222,7 +224,7 @@ show_client_info(){
 }
 
 show_status(){
-    header
+    header "Xray 状态"
 
     local status
     status=$(systemctl is-active "$XRAY_SERVICE" 2>/dev/null || echo "unknown")
@@ -243,7 +245,7 @@ show_status(){
 }
 
 restart_xray(){
-    header
+    header "重启 Xray"
     info "正在重启 Xray..."
 
     systemctl restart "$XRAY_SERVICE"
@@ -259,7 +261,7 @@ restart_xray(){
 }
 
 update_xray(){
-    header
+    header "安装 / 更新 Xray Core"
     warning "正在更新 Xray Core..."
 
     bash <(
@@ -276,7 +278,7 @@ update_xray(){
 }
 
 uninstall_xray_core(){
-    header
+    header "卸载 Xray Core"
     warning "即将卸载 Xray Core，并删除 Xray 下的 VLESS Reality、Shadowsocks 配置和节点信息。"
 
     if ! confirm_action "确认卸载 Xray Core 吗？"; then
@@ -297,7 +299,7 @@ uninstall_xray_core(){
 }
 
 show_current_status(){
-    header
+    header "当前安装核心与状态"
     section "当前核心状态" "$YELLOW"
     echo
 
@@ -330,7 +332,7 @@ show_current_status(){
 }
 
 run_vps_test(){
-    header
+    header "VPS 测试"
     warning "即将运行 VPS 测试脚本。"
 
     if ! confirm_action "确认运行 VPS 测试脚本吗？"; then
@@ -346,7 +348,7 @@ run_vps_test(){
 }
 
 dd_debian(){
-    header
+    header "DD 系统 Debian"
     warning "即将 DD 安装 Debian，执行后系统可能重装并断开连接。"
 
     if ! confirm_action "确认 DD 安装 Debian 吗？"; then
@@ -363,7 +365,7 @@ dd_debian(){
 }
 
 show_ssh_status(){
-    header
+    header "SSH 状态"
 
     local ssh_port
     local password_auth
@@ -384,7 +386,6 @@ show_ssh_status(){
         key_status="未设置"
     fi
 
-    banner "     SSH 状态" "$GREEN"
     kv "SSH 端口              :" "$ssh_port"
     kv "SSH 服务              :" "$service_status"
     kv "Root 密钥             :" "$key_status"
@@ -396,7 +397,7 @@ show_ssh_status(){
 }
 
 set_ssh_port(){
-    header
+    header "设置 SSH 端口"
     read -r -p "$(prompt_text "请输入新的 SSH 端口: ")" ssh_port
 
     if ! valid_port "$ssh_port"; then
@@ -430,7 +431,7 @@ set_ssh_port(){
 }
 
 set_ssh_key(){
-    header
+    header "设置 SSH 密钥"
     read -r -p "$(prompt_text "请输入 SSH 公钥: ")" public_key
 
     if [[ -z "$public_key" ]]; then
@@ -456,7 +457,7 @@ set_ssh_key(){
 
 ssh_menu(){
     while true; do
-        header
+        header "SSH 端口与密钥管理"
         menu_item "1" "设置 SSH 端口"
         menu_item "2" "设置 SSH 密钥"
         menu_item "3" "查看 SSH 状态"
@@ -477,7 +478,7 @@ ssh_menu(){
 }
 
 install_ufw(){
-    header
+    header "安装 UFW"
     ensure_apt_package "ufw"
     ufw --force enable >/dev/null
     success "UFW 已安装并启用。"
@@ -485,7 +486,7 @@ install_ufw(){
 }
 
 ufw_add_ip(){
-    header
+    header "允许 IP"
     read -r -p "$(prompt_text "请输入允许的 IP: ")" ip
     [[ -z "$ip" ]] && error "IP 不能为空。" && pause && return
     [[ "$ip" =~ ^[0-9]+$ ]] && error "这是端口，不是 IP。请使用“开放端口”。" && pause && return
@@ -495,7 +496,7 @@ ufw_add_ip(){
 }
 
 ufw_delete_ip(){
-    header
+    header "删除 IP"
     read -r -p "$(prompt_text "请输入要删除的 IP: ")" ip
     [[ -z "$ip" ]] && error "IP 不能为空。" && pause && return
     [[ "$ip" =~ ^[0-9]+$ ]] && error "这是端口，不是 IP。请使用“删除端口”。" && pause && return
@@ -505,7 +506,7 @@ ufw_delete_ip(){
 }
 
 ufw_add_port(){
-    header
+    header "允许端口"
     read -r -p "$(prompt_text "请输入要开放的端口: ")" port
     [[ -z "$port" ]] && error "端口不能为空。" && pause && return
     valid_port "$port" || { error "端口无效。"; pause; return; }
@@ -517,7 +518,7 @@ ufw_add_port(){
 }
 
 ufw_delete_port(){
-    header
+    header "删除端口"
     read -r -p "$(prompt_text "请输入要删除的端口: ")" port
     [[ -z "$port" ]] && error "端口不能为空。" && pause && return
     valid_port "$port" || { error "端口无效。"; pause; return; }
@@ -529,7 +530,7 @@ ufw_delete_port(){
 }
 
 ufw_batch_add_port(){
-    header
+    header "允许端口"
     local input
     local port
 
@@ -551,7 +552,7 @@ ufw_batch_add_port(){
 }
 
 ufw_batch_delete_port(){
-    header
+    header "删除端口"
     local input
     local port
 
@@ -573,7 +574,7 @@ ufw_batch_delete_port(){
 }
 
 ufw_batch_add_ip(){
-    header
+    header "允许 IP"
     local input
     local ip
 
@@ -594,7 +595,7 @@ ufw_batch_add_ip(){
 }
 
 ufw_batch_delete_ip(){
-    header
+    header "删除 IP"
     local input
     local ip
 
@@ -615,7 +616,7 @@ ufw_batch_delete_ip(){
 }
 
 show_ufw_status(){
-    header
+    header "UFW 状态"
 
     if ! command -v ufw >/dev/null 2>&1; then
         warning "UFW 未安装。"
@@ -623,13 +624,12 @@ show_ufw_status(){
         return
     fi
 
-    banner "     UFW 状态" "$GREEN"
     ufw status verbose
     pause
 }
 
 uninstall_ufw(){
-    header
+    header "卸载 UFW"
     warning "正在卸载 UFW..."
     ufw --force disable >/dev/null 2>&1 || true
     apt purge -y ufw
@@ -640,7 +640,7 @@ uninstall_ufw(){
 
 ufw_menu(){
     while true; do
-        header
+        header "UFW 防火墙管理"
         menu_item "1" "安装 UFW"
         menu_item "2" "查看 UFW 状态"
         menu_item "3" "允许端口"
@@ -669,7 +669,7 @@ ufw_menu(){
 }
 
 install_fail2ban(){
-    header
+    header "安装 Fail2Ban"
     ensure_apt_package "fail2ban"
 
     local ssh_port
@@ -697,13 +697,13 @@ EOF
 }
 
 show_fail2ban_status(){
-    header
+    header "SSHD 状态"
     fail2ban-client status sshd
     pause
 }
 
 uninstall_fail2ban(){
-    header
+    header "卸载 Fail2Ban"
     warning "正在卸载 Fail2Ban..."
     systemctl stop fail2ban 2>/dev/null || true
     systemctl disable fail2ban 2>/dev/null || true
@@ -714,7 +714,7 @@ uninstall_fail2ban(){
 }
 
 fail2ban_unban_ip(){
-    header
+    header "解封 SSHD IP"
     local ip
 
     read -r -p "$(prompt_text "请输入要解封的 IP: ")" ip
@@ -732,7 +732,7 @@ fail2ban_unban_ip(){
 
 fail2ban_menu(){
     while true; do
-        header
+        header "Fail2Ban 管理"
         menu_item "1" "安装 Fail2Ban"
         menu_item "2" "查看 SSHD 状态"
         menu_item "3" "解封 SSHD IP"
@@ -755,7 +755,7 @@ fail2ban_menu(){
 }
 
 install_swap(){
-    header
+    header "安装虚拟内存"
     if [[ -n "$(swapon --show)" ]]; then
         warning "虚拟内存已存在。"
         pause
@@ -773,7 +773,7 @@ install_swap(){
 }
 
 delete_swap(){
-    header
+    header "删除虚拟内存"
     warning "正在删除虚拟内存..."
     swapoff "$SWAPFILE" 2>/dev/null || true
     sed -i "\#^${SWAPFILE}#d" /etc/fstab
@@ -783,8 +783,7 @@ delete_swap(){
 }
 
 show_swap_status(){
-    header
-    banner "     虚拟内存状态" "$GREEN"
+    header "虚拟内存状态"
 
     if [[ -n "$(swapon --show)" ]]; then
         swapon --show
@@ -799,7 +798,7 @@ show_swap_status(){
 
 swap_menu(){
     while true; do
-        header
+        header "虚拟内存管理"
         menu_item "1" "安装 1G 虚拟内存"
         menu_item "2" "查看虚拟内存状态"
         menu_item "3" "删除虚拟内存"
@@ -820,7 +819,7 @@ swap_menu(){
 }
 
 set_timezone(){
-    header
+    header "时区调整"
     timedatectl set-timezone "$TIMEZONE"
     success "时区已调整为 ${TIMEZONE}。"
     pause
@@ -867,7 +866,7 @@ EOF
 }
 
 system_tuning(){
-    header
+    header "系统调优"
     info "正在应用系统调优..."
 
     configure_auto_updates
@@ -899,7 +898,7 @@ EOF
     success "系统调优已完成。"
 
     echo
-    banner "     调优后参数" "$GREEN"
+    section "调优后参数" "$YELLOW"
     kv "default_qdisc                 :" "$(sysctl -n net.core.default_qdisc 2>/dev/null || echo unknown)"
     kv "tcp_congestion_control        :" "$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo unknown)"
     kv "nf_conntrack_max              :" "$(sysctl -n net.netfilter.nf_conntrack_max 2>/dev/null || echo unknown)"
@@ -918,7 +917,7 @@ EOF
 }
 
 enable_ipv6(){
-    header
+    header "开启 IPv6"
     info "正在开启 IPv6..."
     sysctl -w net.ipv6.conf.all.disable_ipv6=0 >/dev/null
     sysctl -w net.ipv6.conf.default.disable_ipv6=0 >/dev/null
@@ -928,7 +927,7 @@ enable_ipv6(){
 }
 
 disable_ipv6(){
-    header
+    header "关闭 IPv6"
     warning "正在关闭 IPv6..."
     sysctl -w net.ipv6.conf.all.disable_ipv6=1 >/dev/null
     sysctl -w net.ipv6.conf.default.disable_ipv6=1 >/dev/null
@@ -944,7 +943,7 @@ EOF
 
 ipv6_menu(){
     while true; do
-        header
+        header "IPv6 管理"
         menu_item "1" "开启 IPv6"
         menu_item "2" "关闭 IPv6"
         echo
@@ -964,7 +963,7 @@ ipv6_menu(){
 
 tools_menu(){
     while true; do
-        header
+        header "工具箱"
         menu_item "1" "VPS 测试"
         menu_item "2" "DD 系统 Debian"
         menu_item "3" "UFW 防火墙管理"
@@ -998,9 +997,7 @@ tools_menu(){
 
 xray_core_menu(){
     while true; do
-        header
-        section "Xray Core" "$YELLOW"
-        echo
+        header "Xray Core"
         menu_item "1" "安装 / 更新 Xray Core"
         menu_item "2" "配置 VLESS Reality"
         menu_item "3" "卸载 VLESS Reality"
@@ -1030,7 +1027,7 @@ xray_core_menu(){
 }
 
 sing_box_placeholder(){
-    header
+    header "Sing-box"
     warning "Sing-box 暂时只保留主菜单入口，功能后续再接入。"
     pause
 }

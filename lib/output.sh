@@ -93,6 +93,14 @@ divider(){
     echo -e "${color}${line}${RESET}"
 }
 
+trim_edges(){
+    local text="$1"
+
+    text="${text#"${text%%[![:space:]]*}"}"
+    text="${text%"${text##*[![:space:]]}"}"
+    printf "%s" "$text"
+}
+
 display_width(){
     local text="$1"
     local chars=${#text}
@@ -109,7 +117,7 @@ display_width(){
 }
 
 center_line(){
-    local text="$1"
+    local text
     local color="${2:-$CYAN}"
     local width="${3:-42}"
     local text_len
@@ -117,6 +125,7 @@ center_line(){
     local right=0
     local line
 
+    text=$(trim_edges "$1")
     text_len=$(display_width "$text")
     if (( text_len >= width )); then
         line="$text"
@@ -130,10 +139,10 @@ center_line(){
 }
 
 section(){
-    local text="$1"
+    local text
     local color="${2:-$CYAN}"
     local width="${3:-42}"
-    local title=" ${text} "
+    local title
     local title_len
     local left=0
     local right=0
@@ -141,6 +150,8 @@ section(){
     local right_line
     local line
 
+    text=$(trim_edges "$1")
+    title=" ${text} "
     title_len=$(display_width "$title")
     if (( title_len >= width )); then
         line="$title"
@@ -160,7 +171,7 @@ banner(){
 
     echo
     divider "$color"
-    echo -e "${color}$1${RESET}"
+    center_line "$1" "$color"
     divider "$color"
     echo
 }
