@@ -968,9 +968,54 @@ is_ifupdown_network(){
     dpkg -s ifupdown >/dev/null 2>&1
 }
 
+list_interfaces_config_files(){
+    local pattern
+    local file
+
+    [[ -f "$NETWORK_INTERFACES_CONFIG" ]] && printf '%s\n' "$NETWORK_INTERFACES_CONFIG"
+
+    if [[ -f "$NETWORK_INTERFACES_CONFIG" ]]; then
+        while IFS= read -r pattern; do
+            for file in $pattern; do
+                [[ -f "$file" ]] && printf '%s\n' "$file"
+            done
+        done < <(awk '
+            /^[[:space:]]*source[[:space:]]+/ || /^[[:space:]]*source-directory[[:space:]]+/ {
+                print $2
+            }
+        ' "$NETWORK_INTERFACES_CONFIG")
+    fi
+
+    if [[ -d /etc/network/interfaces.d ]]; then
+        find /etc/network/interfaces.d -maxdepth 1 -type f 2>/dev/null | sort
+    fi
+}
+
+find_interface_config_file(){
+    local interface="$1"
+    local file
+
+    while IFS= read -r file; do
+        awk -v iface="$interface" '
+            $1 == "iface" && $2 == iface && $3 == "inet" {
+                found = 1
+            }
+            END {
+                exit found ? 0 : 1
+            }
+        ' "$file" && {
+            printf '%s\n' "$file"
+            return 0
+        }
+    done < <(list_interfaces_config_files | awk '!seen[$0]++')
+
+    return 1
+}
+
 update_interfaces_mtu(){
     local interface="$1"
     local mtu="$2"
+    local config_file="$3"
     local tmp_file
 
     tmp_file=$(mktemp)
@@ -988,7 +1033,7 @@ function write_mtu() {
     in_target = 0
     mtu_written = 0
 
-    if ($2 == iface && $3 == "inet" && $4 == "static") {
+    if ($2 == iface && $3 == "inet") {
         found = 1
         in_target = 1
     }
@@ -1015,12 +1060,12 @@ END {
         exit 2
     }
 }
-' "$NETWORK_INTERFACES_CONFIG" > "$tmp_file"; then
+' "$config_file" > "$tmp_file"; then
         rm -f "$tmp_file"
         return 1
     fi
 
-    if ! mv "$tmp_file" "$NETWORK_INTERFACES_CONFIG"; then
+    if ! mv "$tmp_file" "$config_file"; then
         rm -f "$tmp_file"
         return 1
     fi
@@ -1028,16 +1073,16 @@ END {
 
 configure_mtu(){
     while true; do
-        header "MTU Configuration"
+        header "MTU 设置"
 
         if ! is_debian; then
-            error "MTU Configuration only supports Debian with ifupdown."
+            error "MTU 设置仅支持 Debian + ifupdown。"
             pause
             return
         fi
 
         if ! is_ifupdown_network; then
-            error "MTU Configuration only supports Debian with ifupdown."
+            error "MTU 设置仅支持 Debian + ifupdown。"
             pause
             return
         fi
@@ -1052,6 +1097,7 @@ configure_mtu(){
         local current_mtu
         local choice
         local new_mtu
+        local config_file
 
         interface=$(detect_default_interface)
 
@@ -1072,24 +1118,22 @@ configure_mtu(){
         value "$current_mtu"
         echo
         menu_item "1" "MTU 1500"
-        menu_item "2" "MTU 1280"
+        menu_item "2" "MTU 1480"
         menu_item "3" "MTU 1420"
         menu_item "4" "MTU 1380"
-        menu_item "5" "Custom MTU"
+        menu_item "5" "MTU 1280"
         menu_item "0" "Back"
         echo
 
         read -r -p "$(prompt_text "Select [default: ${MTU_VALUE}]: ")" choice
-        choice=${choice:-2}
+        choice=${choice:-5}
 
         case "$choice" in
             1) new_mtu=1500 ;;
-            2) new_mtu=1280 ;;
+            2) new_mtu=1480 ;;
             3) new_mtu=1420 ;;
             4) new_mtu=1380 ;;
-            5)
-                read -r -p "$(prompt_text "Custom MTU: ")" new_mtu
-                ;;
+            5) new_mtu=1280 ;;
             0) return ;;
             *) error "Invalid selection."; pause; continue ;;
         esac
@@ -1100,16 +1144,16 @@ configure_mtu(){
             continue
         fi
 
-        if ! grep -Eq "^[[:space:]]*iface[[:space:]]+${interface}[[:space:]]+inet[[:space:]]+static([[:space:]]|$)" "$NETWORK_INTERFACES_CONFIG"; then
-            error "iface ${interface} inet static not found in ${NETWORK_INTERFACES_CONFIG}."
+        if ! config_file=$(find_interface_config_file "$interface"); then
+            error "iface ${interface} inet not found in /etc/network/interfaces or /etc/network/interfaces.d/."
             pause
             return
         fi
 
-        info "Updating ${NETWORK_INTERFACES_CONFIG}..."
+        info "Updating ${config_file}..."
 
-        if ! update_interfaces_mtu "$interface" "$new_mtu"; then
-            error "Failed to update ${NETWORK_INTERFACES_CONFIG}."
+        if ! update_interfaces_mtu "$interface" "$new_mtu" "$config_file"; then
+            error "Failed to update ${config_file}."
             pause
             return
         fi
@@ -1192,7 +1236,7 @@ tools_menu(){
         menu_item "7" "时区调整"
         menu_item "8" "系统调优"
         menu_item "9" "IPv6 管理"
-        menu_item "10" "MTU Configuration"
+        menu_item "10" "MTU 设置"
         echo
         menu_item "0" "返回主菜单"
         echo

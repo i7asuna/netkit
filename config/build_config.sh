@@ -41,13 +41,18 @@ else
 
 fi
 
-# Check outbound
+# Ensure outbound
 
 if [[ ! -f "$OUTBOUND_FILE" ]]; then
 
-    error "未找到出站配置。"
+    warning "未找到出站配置，正在创建默认出站配置..."
 
-    exit 1
+    cat > "$OUTBOUND_FILE" <<EOF
+{
+  "protocol": "freedom",
+  "settings": {}
+}
+EOF
 
 fi
 
