@@ -20,6 +20,8 @@ IPV6_SYSCTL_CONFIG="/etc/sysctl.d/99-netkit-ipv6.conf"
 SYSCTL_CONFIG="/etc/sysctl.d/99-z-bbr.conf"
 SWAPFILE="/swapfile"
 TIMEZONE="Asia/Hong_Kong"
+NETWORK_INTERFACES_CONFIG="/etc/network/interfaces"
+MTU_VALUE=1280
 
 header(){
     local title="${1:-NetKit}"
@@ -920,6 +922,219 @@ EOF
     pause
 }
 
+detect_default_interface(){
+    ip route | awk '
+        $1 == "default" {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "dev") {
+                    print $(i + 1)
+                    exit
+                }
+            }
+        }
+    '
+}
+
+current_interface_mtu(){
+    local interface="$1"
+
+    ip -o link show dev "$interface" | awk '
+        {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "mtu") {
+                    print $(i + 1)
+                    exit
+                }
+            }
+        }
+    '
+}
+
+is_debian(){
+    [[ -r /etc/os-release ]] || return 1
+
+    local os_id=""
+    # shellcheck source=/dev/null
+    source /etc/os-release
+    os_id="${ID:-}"
+    [[ "$os_id" == "debian" ]]
+}
+
+validate_mtu_value(){
+    [[ "$1" =~ ^[0-9]+$ ]] && [[ "$1" -ge 576 ]] && [[ "$1" -le 9000 ]]
+}
+
+is_ifupdown_network(){
+    dpkg -s ifupdown >/dev/null 2>&1
+}
+
+update_interfaces_mtu(){
+    local interface="$1"
+    local mtu="$2"
+    local tmp_file
+
+    tmp_file=$(mktemp)
+
+    if ! awk -v iface="$interface" -v mtu="$mtu" '
+function write_mtu() {
+    if (in_target && !mtu_written) {
+        print "    mtu " mtu
+        mtu_written = 1
+    }
+}
+
+/^[[:space:]]*iface[[:space:]]+/ {
+    write_mtu()
+    in_target = 0
+    mtu_written = 0
+
+    if ($2 == iface && $3 == "inet" && $4 == "static") {
+        found = 1
+        in_target = 1
+    }
+
+    print
+    next
+}
+
+in_target && /^[[:space:]]*mtu[[:space:]]+/ {
+    if (!mtu_written) {
+        print "    mtu " mtu
+        mtu_written = 1
+    }
+    next
+}
+
+{
+    print
+}
+
+END {
+    write_mtu()
+    if (!found) {
+        exit 2
+    }
+}
+' "$NETWORK_INTERFACES_CONFIG" > "$tmp_file"; then
+        rm -f "$tmp_file"
+        return 1
+    fi
+
+    if ! mv "$tmp_file" "$NETWORK_INTERFACES_CONFIG"; then
+        rm -f "$tmp_file"
+        return 1
+    fi
+}
+
+configure_mtu(){
+    while true; do
+        header "MTU Configuration"
+
+        if ! is_debian; then
+            error "MTU Configuration only supports Debian with ifupdown."
+            pause
+            return
+        fi
+
+        if ! is_ifupdown_network; then
+            error "MTU Configuration only supports Debian with ifupdown."
+            pause
+            return
+        fi
+
+        if [[ ! -f "$NETWORK_INTERFACES_CONFIG" ]]; then
+            error "ifupdown config not found: ${NETWORK_INTERFACES_CONFIG}"
+            pause
+            return
+        fi
+
+        local interface
+        local current_mtu
+        local choice
+        local new_mtu
+
+        interface=$(detect_default_interface)
+
+        if [[ -z "$interface" ]]; then
+            error "Failed to detect default network interface from ip route."
+            pause
+            return
+        fi
+
+        current_mtu=$(current_interface_mtu "$interface")
+        current_mtu=${current_mtu:-unknown}
+
+        echo
+        label "Current Interface:"
+        value "$interface"
+        echo
+        label "Current MTU:"
+        value "$current_mtu"
+        echo
+        menu_item "1" "MTU 1500"
+        menu_item "2" "MTU 1280"
+        menu_item "3" "MTU 1420"
+        menu_item "4" "MTU 1380"
+        menu_item "5" "Custom MTU"
+        menu_item "0" "Back"
+        echo
+
+        read -r -p "$(prompt_text "Select [default: ${MTU_VALUE}]: ")" choice
+        choice=${choice:-2}
+
+        case "$choice" in
+            1) new_mtu=1500 ;;
+            2) new_mtu=1280 ;;
+            3) new_mtu=1420 ;;
+            4) new_mtu=1380 ;;
+            5)
+                read -r -p "$(prompt_text "Custom MTU: ")" new_mtu
+                ;;
+            0) return ;;
+            *) error "Invalid selection."; pause; continue ;;
+        esac
+
+        if ! validate_mtu_value "$new_mtu"; then
+            error "Invalid MTU value. Use a number between 576 and 9000."
+            pause
+            continue
+        fi
+
+        if ! grep -Eq "^[[:space:]]*iface[[:space:]]+${interface}[[:space:]]+inet[[:space:]]+static([[:space:]]|$)" "$NETWORK_INTERFACES_CONFIG"; then
+            error "iface ${interface} inet static not found in ${NETWORK_INTERFACES_CONFIG}."
+            pause
+            return
+        fi
+
+        info "Updating ${NETWORK_INTERFACES_CONFIG}..."
+
+        if ! update_interfaces_mtu "$interface" "$new_mtu"; then
+            error "Failed to update ${NETWORK_INTERFACES_CONFIG}."
+            pause
+            return
+        fi
+
+        info "Applying MTU immediately..."
+
+        if ! ip link set dev "$interface" mtu "$new_mtu"; then
+            error "Failed to apply MTU ${new_mtu} to ${interface}."
+            pause
+            return
+        fi
+
+        success "MTU updated."
+        echo
+        label "Interface:"
+        value "$interface"
+        echo
+        label "MTU:"
+        value "$new_mtu"
+        echo
+        ip link show "$interface"
+        pause
+        return
+    done
+}
 enable_ipv6(){
     header "开启 IPv6"
     info "正在开启 IPv6..."
@@ -977,6 +1192,7 @@ tools_menu(){
         menu_item "7" "时区调整"
         menu_item "8" "系统调优"
         menu_item "9" "IPv6 管理"
+        menu_item "10" "MTU Configuration"
         echo
         menu_item "0" "返回主菜单"
         echo
@@ -993,6 +1209,7 @@ tools_menu(){
             7) set_timezone ;;
             8) system_tuning ;;
             9) ipv6_menu ;;
+            10) configure_mtu ;;
             0) return ;;
             *) error "无效选择。"; pause ;;
         esac
