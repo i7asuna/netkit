@@ -42,19 +42,13 @@ check_reality_target(){
 
     if [[ "$host" != *.* ]]; then
         warning "目标站点看起来不像有效域名：${host}"
-        if ! confirm_action "仍然继续配置 VLESS Reality 吗？"; then
-            exit 1
-        fi
-        return
+        return 1
     fi
 
     if ! curl -V | grep -qi "HTTP2"; then
-        warning "当前 curl 不支持 HTTP/2，无法执行 --http2 检查。"
-        warning "请安装支持 HTTP/2 的 curl，或手动执行 curl -I --http2 https://${host} 检查。"
-        if ! confirm_action "仍然继续配置 VLESS Reality 吗？"; then
-            exit 1
-        fi
-        return
+        error "当前 curl 不支持 HTTP/2，无法执行 --http2 检查。"
+        error "请安装支持 HTTP/2 的 curl 后重试。"
+        return 2
     fi
 
     curl_output=$(
@@ -84,9 +78,7 @@ check_reality_target(){
         warning "目标站点未通过 HTTP/2 检查。"
     fi
 
-    if ! confirm_action "仍然继续配置 VLESS Reality 吗？"; then
-        exit 1
-    fi
+    return 1
 }
 
 ensure_dependencies
@@ -118,11 +110,28 @@ read -r -p "$(prompt_text "端口（留空随机）: ")" PORT
 
 PORT=$(resolve_port "$PORT") || exit 1
 
-read -r -p "$(prompt_text "Reality SNI（默认 icloud.com）: ")" SNI
+while true; do
+    read -r -p "$(prompt_text "Reality SNI（默认 icloud.com）: ")" SNI_INPUT
 
-SNI=$(normalize_reality_sni "$SNI") || exit 1
+    if ! SNI=$(normalize_reality_sni "$SNI_INPUT"); then
+        warning "请重新输入 Reality SNI。"
+        echo
+        continue
+    fi
 
-check_reality_target "$SNI"
+    if check_reality_target "$SNI"; then
+        break
+    else
+        check_status=$?
+    fi
+
+    if [[ "$check_status" -eq 2 ]]; then
+        exit 1
+    fi
+
+    warning "目标站点检查失败，请重新输入 Reality SNI。"
+    echo
+done
 
 info "正在生成 UUID..."
 
