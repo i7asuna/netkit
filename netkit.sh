@@ -1116,10 +1116,8 @@ configure_mtu(){
         label "Current MTU:"
         value "$current_mtu"
         echo
-        read -r -p "$(prompt_text "Enter MTU [default: ${MTU_VALUE}, 0: Back]: ")" new_mtu
+        read -r -p "$(prompt_text "Enter MTU [default: ${MTU_VALUE}]: ")" new_mtu
         new_mtu=${new_mtu:-$MTU_VALUE}
-
-        [[ "$new_mtu" == "0" ]] && return
 
         if ! validate_mtu_value "$new_mtu"; then
             error "Invalid MTU value. Use a number between 576 and 9000."
