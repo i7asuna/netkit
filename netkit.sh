@@ -21,7 +21,7 @@ SYSCTL_CONFIG="/etc/sysctl.d/99-z-bbr.conf"
 SWAPFILE="/swapfile"
 TIMEZONE="Asia/Hong_Kong"
 NETWORK_INTERFACES_CONFIG="/etc/network/interfaces"
-MTU_VALUE=1280
+MTU_VALUE=1500
 
 header(){
     local title="${1:-NetKit}"
@@ -1095,7 +1095,6 @@ configure_mtu(){
 
         local interface
         local current_mtu
-        local choice
         local new_mtu
         local config_file
 
@@ -1117,26 +1116,10 @@ configure_mtu(){
         label "Current MTU:"
         value "$current_mtu"
         echo
-        menu_item "1" "MTU 1500"
-        menu_item "2" "MTU 1480"
-        menu_item "3" "MTU 1420"
-        menu_item "4" "MTU 1380"
-        menu_item "5" "MTU 1280"
-        menu_item "0" "Back"
-        echo
+        read -r -p "$(prompt_text "Enter MTU [default: ${MTU_VALUE}, 0: Back]: ")" new_mtu
+        new_mtu=${new_mtu:-$MTU_VALUE}
 
-        read -r -p "$(prompt_text "Select [default: ${MTU_VALUE}]: ")" choice
-        choice=${choice:-5}
-
-        case "$choice" in
-            1) new_mtu=1500 ;;
-            2) new_mtu=1480 ;;
-            3) new_mtu=1420 ;;
-            4) new_mtu=1380 ;;
-            5) new_mtu=1280 ;;
-            0) return ;;
-            *) error "Invalid selection."; pause; continue ;;
-        esac
+        [[ "$new_mtu" == "0" ]] && return
 
         if ! validate_mtu_value "$new_mtu"; then
             error "Invalid MTU value. Use a number between 576 and 9000."
