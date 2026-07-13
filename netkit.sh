@@ -843,12 +843,6 @@ configure_auto_updates(){
     header "自动更新与自动重启"
     warning "启用后将每天检查并安装更新；如系统要求重启，将在 03:30 自动重启。"
 
-    if ! confirm_action "确认启用自动更新与自动重启吗？"; then
-        warning "已取消。"
-        pause
-        return
-    fi
-
     info "正在配置系统自动更新..."
 
     apt update

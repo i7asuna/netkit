@@ -28,6 +28,94 @@ apt update && apt install -y curl wget git ca-certificates && bash <(curl -fsSL 
 
 进入 NetKit 管理菜单。
 
+## DMIT 网络恢复
+
+### DD Debian 13 后无法联网
+
+如果 DD Debian 13 后无法联网，可以通过 VNC 登录，确保 `noarp` 只写入一次后重启：
+
+```bash
+grep -qxF 'noarp' /etc/dhcpcd.conf || echo 'noarp' >> /etc/dhcpcd.conf
+reboot
+```
+
+### 更换 XanMod 后无法通过 SSH 连接
+
+部分 DMIT 实例在 Debian 原版内核与 XanMod 下会使用不同的主网卡名称。如果 `networking.service` 提示配置中的接口不存在，应通过 VNC 按以下流程恢复。所有网卡名均以实际查询结果为准，不要直接照抄其他机器的名称。
+
+以 `root` 登录 VNC，加载 VirtIO 网卡模块并查看接口：
+
+```bash
+modprobe virtio_pci
+modprobe virtio_net
+ip -br link
+```
+
+单网卡 VPS 可用下面的命令取得 `lo` 之外的实际网卡名；如果存在多张网卡，请根据 `ip -br link` 的结果手动设置变量：
+
+```bash
+ACTUAL_IFACE=$(ls /sys/class/net | grep -vx 'lo' | head -n 1)
+printf '实际网卡：%s\n' "$ACTUAL_IFACE"
+```
+
+确认变量正确后，临时启动网卡并通过 DHCP 获取地址：
+
+```bash
+ip link set "$ACTUAL_IFACE" up
+dhcpcd -4 "$ACTUAL_IFACE"
+ip -br addr
+ip route
+```
+
+SSH 恢复后，先查询 ifupdown 当前写入的网卡名和配置文件位置：
+
+```bash
+ACTUAL_IFACE=$(ls /sys/class/net | grep -vx 'lo' | head -n 1)
+grep -R -nE '^(auto|allow-hotplug|iface)' \
+    /etc/network/interfaces /etc/network/interfaces.d/
+```
+
+如果非回环网卡配置位于 `/etc/network/interfaces`，可以执行以下命令自动读取旧名称，并直接替换为实际名称：
+
+```bash
+CONFIG_FILE=/etc/network/interfaces
+CONFIG_IFACE=$(awk '$1 == "iface" && $2 != "lo" {print $2; exit}' "$CONFIG_FILE")
+
+printf '配置中的网卡：%s\n' "$CONFIG_IFACE"
+printf '系统实际网卡：%s\n' "$ACTUAL_IFACE"
+
+if [[ -z "$ACTUAL_IFACE" || -z "$CONFIG_IFACE" ]]; then
+    echo '未能识别网卡名称，请根据前面的查询结果手动检查，不要继续替换。'
+else
+    sed -i "s/${CONFIG_IFACE}/${ACTUAL_IFACE}/g" "$CONFIG_FILE"
+    printf '%s\n' virtio_pci virtio_net > /etc/modules-load.d/dmit-virtio.conf
+    ifquery "$ACTUAL_IFACE"
+    systemctl reset-failed networking
+fi
+```
+
+如果配置实际位于 `/etc/network/interfaces.d/`，请将 `CONFIG_FILE` 改为查询到的文件路径后再执行。最后确认配置：
+
+```bash
+cat "$CONFIG_FILE"
+cat /etc/modules-load.d/dmit-virtio.conf
+```
+
+不要在仍运行原版内核、且配置已经换成新网卡名时执行 `systemctl restart networking`，否则当前 SSH 可能立即中断。配置确认无误后重启进入 XanMod：
+
+```bash
+reboot
+```
+
+重启后验证：
+
+```bash
+uname -r
+systemctl is-active networking
+ip -br addr
+ip route
+```
+
 ## 致谢
 
 本项目在部分功能中会调用优秀的第三方脚本，在此感谢这些项目和作者的开源贡献：
@@ -37,13 +125,6 @@ apt update && apt install -y curl wget git ca-certificates && bash <(curl -fsSL 
 
 - [bin456789/reinstall](https://github.com/bin456789/reinstall)  
   用于 DD / 重装 Debian 系统。
-
-  如果在 DMIT 机器上 DD Debian 13 后出现网络异常或无法正常联网，可以尝试通过 VNC 登录系统后执行：
-
-  ```bash
-  echo "noarp" >> /etc/dhcpcd.conf
-  reboot
-  ```
 
 - [NodeQuality](https://github.com/LloydAsp/NodeQuality)  
   用于 VPS 质量与网络测试。
