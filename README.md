@@ -32,7 +32,7 @@ apt update && apt install -y curl wget git ca-certificates && bash <(curl -fsSL 
 
 ### DD Debian 13 后无法联网
 
-如果 DD Debian 13 后无法联网，可以通过 VNC 登录，确保 `noarp` 只写入一次后重启：
+如果 DD Debian 13 后无法联网，可以通过 VNC 登录系统后执行：
 
 ```bash
 grep -qxF 'noarp' /etc/dhcpcd.conf || echo 'noarp' >> /etc/dhcpcd.conf
@@ -40,7 +40,8 @@ reboot
 ```
 
 ### 更换 XanMod 后无法通过 SSH 连接
-以 `root` 登录，加载 VirtIO 网卡模块：
+
+通过 VNC 以 `root` 登录系统，加载 VirtIO 网卡模块：
 
 ```
 modprobe virtio_pci
@@ -53,27 +54,30 @@ modprobe virtio_net
 ip -br link
 ```
 
-查询结果第一列是网卡名。忽略 `lo`，记下另一张网卡的名称。确认存在 `查询到的网卡名` 后，启动网卡并获取地址；下面命令中的 `查询到的网卡名` 都要替换成这个名称：
+`ip -br link` 的查询结果中，第一列是网卡名。忽略 `lo`，将另一张网卡的名称记为 `实际网卡名`。启动网卡并获取地址时，把下面的 `实际网卡名` 替换成该名称：
 
 ```
-ip link set 查询到的网卡名 up
-dhcpcd -4 查询到的网卡名
+ip link set 实际网卡名 up
+dhcpcd -4 实际网卡名
 ```
 
-现在保持 SSH 连接，不要重启网络服务。先查看原来的网络配置：
+网络恢复后，此时已经可以使用 Xshell 等 SSH 工具重新连接服务器。后续操作可在 SSH 中完成，但不要重启网络服务。先查看原来的网络配置：
 
 ```
 cat /etc/network/interfaces
 ```
 
-记下 `配置文件中的旧网卡名`。执行下面的命令前，将 `配置文件中的旧网卡名` 替换成文件里的名称，将 `查询到的网卡名` 替换成 `ip -br link` 查到的名称：
+记下文件中原来的网卡名称。执行下一组命令前，按以下规则替换占位内容：
+
+- `原配置网卡名`：`/etc/network/interfaces` 中原来的名称。
+- `实际网卡名`：`ip -br link` 查询到的名称。
 
 ```
-sed -i 's/配置文件中的旧网卡名/查询到的网卡名/g' /etc/network/interfaces
+sed -i 's/原配置网卡名/实际网卡名/g' /etc/network/interfaces
 
 printf '%s\n' virtio_pci virtio_net > /etc/modules-load.d/dmit-virtio.conf
 
-ifquery 查询到的网卡名
+ifquery 实际网卡名
 
 systemctl reset-failed networking
 ```
@@ -84,7 +88,7 @@ systemctl reset-failed networking
 cat /etc/network/interfaces
 ```
 
-配置中 `auto` 和 `iface` 后面的网卡名，都应当显示为 `ip -br link` 查询到的名称。
+配置中 `auto` 和 `iface` 后面的网卡名，都应当显示为 `实际网卡名`。
 
 ## 致谢
 
