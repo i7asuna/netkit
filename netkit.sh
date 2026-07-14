@@ -208,8 +208,8 @@ configure_shadowsocks(){
 }
 
 uninstall_vless(){
-    header "卸载 VLESS Reality"
-    warning "正在卸载 VLESS Reality..."
+    header "卸载 VLESS + TCP + XTLS Vision + REALITY"
+    warning "正在卸载 VLESS + TCP + XTLS Vision + REALITY..."
     rm -f "${PROTOCOL_DIR}/vless.json" "${CLIENT_DIR}/vless.txt"
     rebuild_or_stop_xray
     pause
@@ -226,7 +226,7 @@ uninstall_shadowsocks(){
 show_client_info(){
     header "连接信息"
 
-    section "VLESS Reality" "$YELLOW"
+    section "VLESS + TCP + XTLS Vision + REALITY" "$YELLOW"
     echo
     if [[ -f "${CLIENT_DIR}/vless.txt" ]]; then
         while IFS= read -r line; do
@@ -443,7 +443,7 @@ uninstall_sing_box(){
 
 uninstall_xray_core(){
     header "卸载 Xray Core"
-    warning "即将卸载 Xray Core，并删除 Xray 下的 VLESS Reality、Shadowsocks 配置和连接信息。"
+    warning "即将卸载 Xray Core，并删除 Xray 下的 VLESS + TCP + XTLS Vision + REALITY、Shadowsocks 配置和连接信息。"
 
     if ! confirm_action "确认卸载 Xray Core 吗？"; then
         warning "已取消。"
@@ -492,9 +492,9 @@ show_current_status(){
     section "连接配置" "$YELLOW"
     echo
     if [[ -f "${CLIENT_DIR}/vless.txt" ]]; then
-        kv "VLESS Reality    :" "已配置"
+        kv "VLESS + TCP + XTLS Vision + REALITY    :" "已配置"
     else
-        kv "VLESS Reality    :" "未配置"
+        kv "VLESS + TCP + XTLS Vision + REALITY    :" "未配置"
     fi
 
     if [[ -f "${CLIENT_DIR}/shadowsocks.txt" ]]; then
@@ -1468,8 +1468,8 @@ xray_core_menu(){
     while true; do
         header "Xray Core"
         menu_item "1" "安装 / 更新 Xray Core"
-        menu_item "2" "配置 VLESS Reality"
-        menu_item "3" "卸载 VLESS Reality"
+        menu_item "2" "配置 VLESS + TCP + XTLS Vision + REALITY"
+        menu_item "3" "卸载 VLESS + TCP + XTLS Vision + REALITY"
         menu_item "4" "配置 Shadowsocks"
         menu_item "5" "卸载 Shadowsocks"
         menu_item "6" "重启 Xray"

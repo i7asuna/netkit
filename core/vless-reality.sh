@@ -27,7 +27,7 @@ ensure_dependencies(){
     done
 
     if [[ "${#missing[@]}" -gt 0 ]]; then
-        info "正在安装 VLESS Reality 环境依赖..."
+        info "正在安装 VLESS + TCP + XTLS Vision + REALITY 环境依赖..."
         apt update
         apt install -y "${missing[@]}"
     fi
@@ -160,7 +160,7 @@ info "正在生成 Short ID..."
 
 SHORT_ID=$(openssl rand -hex 8)
 
-info "正在写入 VLESS Reality 协议配置..."
+info "正在写入 VLESS + TCP + XTLS Vision + REALITY 协议配置..."
 
 PROTOCOL_BACKUP=""
 if [[ -f "$PROTOCOL_CONFIG" ]]; then
@@ -273,7 +273,7 @@ VLESS Link:
 ${VLESS_LINK}
 
 Mihomo / Clash:
-- name: VLESS Reality
+- name: VLESS + TCP + XTLS Vision + REALITY
   type: vless
   server: ${YAML_SERVER}
   port: ${PORT}
@@ -298,7 +298,7 @@ echo
 label " Xray 主配置文件"
 path_value "${XRAY_DIR}/config.json"
 echo
-label " VLESS Reality 协议配置文件"
+label " VLESS + TCP + XTLS Vision + REALITY 协议配置文件"
 path_value "$PROTOCOL_CONFIG"
 echo
 label " 连接信息文件"
