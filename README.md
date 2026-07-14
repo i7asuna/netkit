@@ -1,6 +1,6 @@
 # NetKit
 
-一个用于管理网络服务、连接协议以及常用 VPS 系统工具的 Bash 管理脚本。当前核心为 Xray Core，后续会继续扩展其他核心。
+一个用于管理网络服务、连接协议以及常用 VPS 系统工具的 Bash 管理脚本。当前支持 Xray Core，并已接入 Sing-box 正式稳定版的核心管理。
 
 ## 项目定位
 
@@ -88,6 +88,9 @@ reboot
 
 - [XTLS/Xray-install](https://github.com/XTLS/Xray-install)  
   用于安装和更新 Xray Core。
+
+- [SagerNet/sing-box](https://github.com/SagerNet/sing-box)
+  使用官方稳定通道安装和更新 Sing-box。
 
 - [bin456789/reinstall](https://github.com/bin456789/reinstall)  
   用于 DD / 重装 Debian 系统。

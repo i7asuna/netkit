@@ -8,6 +8,7 @@ SCRIPT_DIR="/root/netkit"
 source "${SCRIPT_DIR}/lib/output.sh"
 
 INSTALL_SCRIPT="${SCRIPT_DIR}/core/xray-core.sh"
+SING_BOX_INSTALL_SCRIPT="${SCRIPT_DIR}/core/sing-box-core.sh"
 VLESS_SCRIPT="${SCRIPT_DIR}/core/vless-reality.sh"
 SS_SCRIPT="${SCRIPT_DIR}/core/shadowsocks.sh"
 BUILD_CONFIG_SCRIPT="${SCRIPT_DIR}/config/build_config.sh"
@@ -17,6 +18,8 @@ XRAY_SERVICE="xray"
 XRAY_DIR="/usr/local/etc/xray"
 PROTOCOL_DIR="${XRAY_DIR}/protocols"
 CLIENT_DIR="${XRAY_DIR}/client"
+SING_BOX_SERVICE="sing-box"
+SING_BOX_DIR="/etc/sing-box"
 IPV6_SYSCTL_CONFIG="/etc/sysctl.d/99-netkit-ipv6.conf"
 SYSCTL_CONFIG="/etc/sysctl.d/99-z-bbr.conf"
 SWAPFILE="/swapfile"
@@ -37,6 +40,7 @@ header(){
 
 run_script(){
     local file="$1"
+    shift
 
     if [[ ! -f "$file" ]]; then
         error "脚本不存在: $file"
@@ -44,7 +48,51 @@ run_script(){
         return 1
     fi
 
-    bash "$file"
+    bash "$file" "$@"
+}
+
+SELECTED_VERSION=""
+
+select_stable_version(){
+    local core_name="$1"
+    local repository="$2"
+    local input
+    local release_json
+
+    SELECTED_VERSION=""
+
+    echo
+    read -r -p "$(prompt_text "请输入 ${core_name} 版本号（如 v1.13.12，回车使用最新稳定版）: ")" input
+    input=$(trim_edges "$input")
+
+    if [[ -z "$input" ]]; then
+        return 0
+    fi
+
+    input="v${input#v}"
+
+    if [[ ! "$input" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        error "版本号格式无效：${input}"
+        error "仅支持正式稳定版，例如 v1.13.12。"
+        return 1
+    fi
+
+    info "正在验证 ${core_name} ${input}..."
+
+    if ! release_json=$(curl -fsSL -L \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/${repository}/releases/tags/${input}"); then
+        error "未找到 ${core_name} ${input}，请检查版本号。"
+        return 1
+    fi
+
+    if ! grep -q '"prerelease":[[:space:]]*false' <<< "$release_json" || \
+       ! grep -q '"draft":[[:space:]]*false' <<< "$release_json"; then
+        error "${core_name} ${input} 不是正式稳定版，已拒绝安装。"
+        return 1
+    fi
+
+    SELECTED_VERSION="$input"
 }
 
 valid_port(){
@@ -267,16 +315,127 @@ restart_xray(){
 
 update_xray(){
     header "安装 / 更新 Xray Core"
-    warning "正在更新 Xray Core..."
+
+    if ! select_stable_version "Xray Core" "XTLS/Xray-core"; then
+        pause
+        return
+    fi
+
+    local install_args=(install)
+
+    if [[ -n "$SELECTED_VERSION" ]]; then
+        install_args+=(--version "$SELECTED_VERSION")
+        warning "正在安装 Xray Core ${SELECTED_VERSION}..."
+    else
+        warning "正在安装 Xray Core 最新正式稳定版..."
+    fi
 
     bash <(
         curl -fsSL -L \
         https://github.com/XTLS/Xray-install/raw/main/install-release.sh
-    ) install
+    ) "${install_args[@]}"
 
     echo
     if command -v xray >/dev/null 2>&1; then
         value "$(xray version | head -n1)"
+    fi
+
+    pause
+}
+
+install_sing_box(){
+    header "安装 / 更新 Sing-box"
+
+    if ! select_stable_version "Sing-box" "SagerNet/sing-box"; then
+        pause
+        return
+    fi
+
+    if [[ -n "$SELECTED_VERSION" ]]; then
+        warning "正在安装 Sing-box ${SELECTED_VERSION}..."
+    else
+        warning "正在安装 Sing-box 最新正式稳定版..."
+    fi
+
+    run_script "$SING_BOX_INSTALL_SCRIPT" "$SELECTED_VERSION"
+    pause
+}
+
+show_sing_box_status(){
+    header "Sing-box 状态"
+
+    local status
+    status=$(systemctl is-active "$SING_BOX_SERVICE" 2>/dev/null || true)
+    status=${status:-unknown}
+
+    if [[ "$status" == "active" ]]; then
+        success "Sing-box 状态: 运行中"
+    else
+        warning "Sing-box 状态: ${status}"
+    fi
+
+    echo
+    if command -v sing-box >/dev/null 2>&1; then
+        label "版本"
+        value "$(sing-box version | head -n1)"
+    else
+        warning "未检测到 Sing-box。"
+    fi
+
+    pause
+}
+
+restart_sing_box(){
+    header "重启 Sing-box"
+
+    if ! command -v sing-box >/dev/null 2>&1; then
+        error "未检测到 Sing-box，请先安装。"
+        pause
+        return
+    fi
+
+    info "正在重启 Sing-box..."
+
+    if ! systemctl restart "$SING_BOX_SERVICE"; then
+        error "Sing-box 重启失败。"
+        pause
+        return
+    fi
+
+    sleep 1
+
+    if systemctl is-active --quiet "$SING_BOX_SERVICE"; then
+        success "Sing-box 重启成功。"
+    else
+        error "Sing-box 重启失败。"
+    fi
+
+    pause
+}
+
+uninstall_sing_box(){
+    header "卸载 Sing-box"
+    warning "即将卸载 Sing-box，并删除其配置和连接信息。"
+
+    if ! confirm_action "确认卸载 Sing-box 吗？"; then
+        warning "已取消。"
+        pause
+        return
+    fi
+
+    systemctl disable --now "$SING_BOX_SERVICE" 2>/dev/null || true
+
+    if dpkg-query -W -f='${Status}' sing-box 2>/dev/null | grep -q "ok installed"; then
+        apt-get remove --purge -y sing-box
+    fi
+
+    rm -rf "$SING_BOX_DIR"
+    systemctl daemon-reload
+
+    if command -v sing-box >/dev/null 2>&1; then
+        warning "Sing-box 程序仍然存在，请检查是否由其他方式安装。"
+    else
+        success "Sing-box 与其配置已卸载。"
     fi
 
     pause
@@ -316,6 +475,17 @@ show_current_status(){
         value "$(xray version | head -n1)"
     else
         warning "未检测到 Xray Core。"
+    fi
+
+    echo
+    status=$(systemctl is-active "$SING_BOX_SERVICE" 2>/dev/null || true)
+    status=${status:-unknown}
+
+    kv "Sing-box        :" "$status"
+    if command -v sing-box >/dev/null 2>&1; then
+        value "$(sing-box version | head -n1)"
+    else
+        warning "未检测到 Sing-box。"
     fi
 
     echo
@@ -1325,10 +1495,29 @@ xray_core_menu(){
     done
 }
 
-sing_box_placeholder(){
-    header "Sing-box"
-    warning "Sing-box 暂时只保留主菜单入口，功能后续再接入。"
-    pause
+sing_box_menu(){
+    while true; do
+        header "Sing-box"
+        menu_item "1" "安装 / 更新 Sing-box"
+        menu_item "2" "查看 Sing-box 状态"
+        menu_item "3" "重启 Sing-box"
+        menu_item "4" "卸载 Sing-box"
+        echo
+        menu_item "0" "返回主菜单"
+        echo
+
+        read -r -p "$(prompt_text "请选择: ")" choice
+        choice=${choice:-0}
+
+        case "$choice" in
+            1) install_sing_box ;;
+            2) show_sing_box_status ;;
+            3) restart_sing_box ;;
+            4) uninstall_sing_box ;;
+            0) return ;;
+            *) error "无效选择。"; pause ;;
+        esac
+    done
 }
 
 main_menu(){
@@ -1356,7 +1545,7 @@ main_menu(){
 
         case "$choice" in
             1) xray_core_menu ;;
-            2) sing_box_placeholder ;;
+            2) sing_box_menu ;;
             11) show_current_status ;;
             12) show_client_info ;;
             66) tools_menu ;;
