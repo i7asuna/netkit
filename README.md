@@ -86,20 +86,15 @@ reboot
 
 本项目在部分功能中会调用优秀的第三方脚本，在此感谢这些项目和作者的开源贡献：
 
-- [XTLS/Xray-install](https://github.com/XTLS/Xray-install)  
-  用于安装和更新 Xray Core。
+- [XTLS/Xray-install](https://github.com/XTLS/Xray-install) 用于安装和更新 Xray Core。
 
-- [SagerNet/sing-box](https://github.com/SagerNet/sing-box)
-  使用官方稳定通道安装和更新 Sing-box。
+- [SagerNet/sing-box](https://github.com/SagerNet/sing-box) 使用官方稳定通道安装和更新 Sing-box。
 
-- [bin456789/reinstall](https://github.com/bin456789/reinstall)  
-  用于 DD / 重装 Debian 系统。
+- [bin456789/reinstall](https://github.com/bin456789/reinstall) 用于 DD / 重装 Debian 系统。
 
-- [NodeQuality](https://github.com/LloydAsp/NodeQuality)  
-  用于 VPS 质量与网络测试。
+- [NodeQuality](https://github.com/LloydAsp/NodeQuality) 用于 VPS 质量与网络测试。
 
-- [XanMod 官方内核](https://xanmod.org/)
-  用于在受支持的 Debian/Ubuntu x86_64 系统上安装包含 BBRv3 的 XanMod 内核。
+- [XanMod 官方内核](https://xanmod.org/) 用于在受支持的 Debian/Ubuntu x86_64 系统上安装包含 BBRv3 的 XanMod 内核。
 
 这些脚本并非本项目原创，也不包含在本仓库源码中。本项目只是根据用户选择在线调用它们。使用前建议自行查看对应项目源码、说明和许可证，并确认脚本内容符合自己的使用需求。
 
