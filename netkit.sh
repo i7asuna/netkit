@@ -1696,7 +1696,7 @@ main_menu(){
         echo
         section "连接信息" "$YELLOW"
         echo
-        menu_item "12" "查看连接信息"
+        menu_item "11" "查看连接信息"
         echo
         section "工具" "$YELLOW"
         echo
@@ -1711,7 +1711,7 @@ main_menu(){
         case "$choice" in
             1) xray_core_menu ;;
             2) sing_box_menu ;;
-            12) show_client_info ;;
+            11) show_client_info ;;
             66) tools_menu ;;
             0) exit 0 ;;
             *) error "无效选择。"; pause ;;
