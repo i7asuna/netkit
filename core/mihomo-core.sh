@@ -15,7 +15,7 @@ REQUESTED_VERSION="${1:-}"
 
 if [[ -n "$REQUESTED_VERSION" && ! "$REQUESTED_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     error "版本号格式无效：${REQUESTED_VERSION}"
-    error "仅支持正式稳定版，例如 v1.19.27。"
+    error "仅支持正式稳定版版本号。"
     exit 1
 fi
 

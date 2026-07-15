@@ -67,7 +67,7 @@ select_stable_version(){
     SELECTED_VERSION=""
 
     echo
-    read -r -p "$(prompt_text "请输入 ${core_name} 版本号（如 v1.13.12，回车使用最新稳定版，输入 0 取消）: ")" input
+    read -r -p "$(prompt_text "请输入 ${core_name} 正式稳定版版本号（回车使用最新稳定版，输入 0 取消）: ")" input
     input=$(trim_edges "$input")
 
     cancel_input "$input" && return "$INPUT_CANCEL_STATUS"
@@ -80,7 +80,7 @@ select_stable_version(){
 
     if [[ ! "$input" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         error "版本号格式无效：${input}"
-        error "仅支持正式稳定版，例如 v1.13.12。"
+        error "仅支持正式稳定版版本号。"
         return 1
     fi
 
