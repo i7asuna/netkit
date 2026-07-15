@@ -1130,6 +1130,7 @@ net.netfilter.nf_conntrack_tcp_timeout_established = 86400
 net.core.rmem_max = 4194304
 net.core.wmem_max = 4194304
 
+net.ipv4.tcp_fastopen = 3
 net.ipv4.tcp_ecn = 2
 net.ipv4.tcp_mtu_probing = 1
 
@@ -1149,6 +1150,7 @@ EOF
     kv "nf_conntrack_tcp_established  :" "$(sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established 2>/dev/null || echo unknown)"
     kv "rmem_max                      :" "$(sysctl -n net.core.rmem_max 2>/dev/null || echo unknown)"
     kv "wmem_max                      :" "$(sysctl -n net.core.wmem_max 2>/dev/null || echo unknown)"
+    kv "tcp_fastopen                  :" "$(sysctl -n net.ipv4.tcp_fastopen 2>/dev/null || echo unknown)"
     kv "tcp_ecn                       :" "$(sysctl -n net.ipv4.tcp_ecn 2>/dev/null || echo unknown)"
     kv "tcp_mtu_probing               :" "$(sysctl -n net.ipv4.tcp_mtu_probing 2>/dev/null || echo unknown)"
     kv "swappiness                    :" "$(sysctl -n vm.swappiness 2>/dev/null || echo unknown)"
