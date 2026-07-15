@@ -44,7 +44,6 @@ trap 'rm -f "$CONFIG_TMP"' EXIT
 cat > "$CONFIG_TMP" <<EOF
 mode: direct
 log-level: error
-inbound-tfo: true
 
 listeners:
 EOF

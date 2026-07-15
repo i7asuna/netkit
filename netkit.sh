@@ -1130,7 +1130,7 @@ net.netfilter.nf_conntrack_tcp_timeout_established = 86400
 net.core.rmem_max = 4194304
 net.core.wmem_max = 4194304
 
-net.ipv4.tcp_fastopen = 3
+net.ipv4.tcp_fastopen = 0
 net.ipv4.tcp_ecn = 2
 net.ipv4.tcp_mtu_probing = 1
 
