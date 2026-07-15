@@ -53,14 +53,6 @@ valid_port(){
     [[ "$1" =~ ^[0-9]+$ ]] && [[ "$1" -ge 1 ]] && [[ "$1" -le 65535 ]]
 }
 
-json_number_field(){
-    local file="$1"
-    local field="$2"
-
-    [[ -f "$file" ]] || return 0
-    sed -nE "s/.*\"${field}\"[[:space:]]*:[[:space:]]*([0-9]+).*/\1/p" "$file" | head -n1
-}
-
 yaml_number_field(){
     local file="$1"
     local field="$2"

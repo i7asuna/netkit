@@ -238,6 +238,7 @@ Mihomo / Clash:
   network: tcp
   tls: true
   udp: true
+  tfo: true
   flow: ${YAML_FLOW}
   servername: ${YAML_SNI}
   client-fingerprint: ${FINGERPRINT}

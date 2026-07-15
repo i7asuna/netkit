@@ -7,28 +7,12 @@ SCRIPT_DIR="/root/netkit"
 # shellcheck source=/root/netkit/lib/output.sh
 source "${SCRIPT_DIR}/lib/output.sh"
 
-INSTALL_SCRIPT="${SCRIPT_DIR}/core/xray-core.sh"
-SING_BOX_INSTALL_SCRIPT="${SCRIPT_DIR}/core/sing-box-core.sh"
-SING_BOX_VLESS_SCRIPT="${SCRIPT_DIR}/core/sing-box-vless-reality.sh"
-SING_BOX_SS_SCRIPT="${SCRIPT_DIR}/core/sing-box-shadowsocks.sh"
-SING_BOX_BUILD_CONFIG_SCRIPT="${SCRIPT_DIR}/config/sing-box-build-config.sh"
 MIHOMO_INSTALL_SCRIPT="${SCRIPT_DIR}/core/mihomo-core.sh"
 MIHOMO_VLESS_SCRIPT="${SCRIPT_DIR}/core/mihomo-vless-reality.sh"
 MIHOMO_SS_SCRIPT="${SCRIPT_DIR}/core/mihomo-shadowsocks.sh"
 MIHOMO_BUILD_CONFIG_SCRIPT="${SCRIPT_DIR}/config/mihomo-build-config.sh"
-VLESS_SCRIPT="${SCRIPT_DIR}/core/vless-reality.sh"
-SS_SCRIPT="${SCRIPT_DIR}/core/shadowsocks.sh"
-BUILD_CONFIG_SCRIPT="${SCRIPT_DIR}/config/build_config.sh"
 XANMOD_SCRIPT="${SCRIPT_DIR}/system/xanmod-kernel.sh"
 
-XRAY_SERVICE="xray"
-XRAY_DIR="/usr/local/etc/xray"
-PROTOCOL_DIR="${XRAY_DIR}/protocols"
-CLIENT_DIR="${XRAY_DIR}/client"
-SING_BOX_SERVICE="sing-box"
-SING_BOX_DIR="/etc/sing-box"
-SING_BOX_PROTOCOL_DIR="${SING_BOX_DIR}/protocols"
-SING_BOX_CLIENT_DIR="${SING_BOX_DIR}/client"
 MIHOMO_SERVICE="mihomo"
 MIHOMO_DIR="/etc/mihomo"
 MIHOMO_PROTOCOL_DIR="${MIHOMO_DIR}/protocols"
@@ -193,50 +177,6 @@ ensure_apt_package(){
     apt install -y "$package"
 }
 
-rebuild_or_stop_xray(){
-    local found=false
-    local file
-
-    for file in "$PROTOCOL_DIR"/*.json; do
-        if [[ -f "$file" ]]; then
-            found=true
-            break
-        fi
-    done
-
-    if $found; then
-        bash "$BUILD_CONFIG_SCRIPT"
-        systemctl restart "$XRAY_SERVICE"
-        success "Xray 配置已重建并重启。"
-    else
-        rm -f "${XRAY_DIR}/config.json"
-        systemctl stop "$XRAY_SERVICE" 2>/dev/null || true
-        warning "已无协议配置，Xray 已停止。"
-    fi
-}
-
-rebuild_or_stop_sing_box(){
-    local found=false
-    local file
-
-    for file in "$SING_BOX_PROTOCOL_DIR"/*.json; do
-        if [[ -f "$file" ]]; then
-            found=true
-            break
-        fi
-    done
-
-    if $found; then
-        bash "$SING_BOX_BUILD_CONFIG_SCRIPT"
-        systemctl restart "$SING_BOX_SERVICE"
-        success "Sing-box 配置已重建并重启。"
-    else
-        rm -f "${SING_BOX_DIR}/config.json"
-        systemctl stop "$SING_BOX_SERVICE" 2>/dev/null || true
-        warning "已无协议配置，Sing-box 已停止。"
-    fi
-}
-
 rebuild_or_stop_mihomo(){
     local found=false
     local file
@@ -259,151 +199,9 @@ rebuild_or_stop_mihomo(){
     fi
 }
 
-install_xray(){
-    run_script "$INSTALL_SCRIPT"
-    pause
-}
-
-configure_vless(){
-    run_script_and_pause "$VLESS_SCRIPT"
-}
-
-configure_shadowsocks(){
-    run_script_and_pause "$SS_SCRIPT"
-}
-
-uninstall_vless(){
-    local port
-
-    header "卸载 VLESS + TCP + XTLS Vision + REALITY"
-    warning "正在卸载 VLESS + TCP + XTLS Vision + REALITY..."
-    port=$(json_number_field "${PROTOCOL_DIR}/vless.json" "port")
-    rm -f "${PROTOCOL_DIR}/vless.json" "${CLIENT_DIR}/vless.txt"
-    rebuild_or_stop_xray
-    remove_ufw_port_rule "$port" tcp
-    pause
-}
-
-uninstall_shadowsocks(){
-    local port
-
-    header "卸载 Shadowsocks"
-    warning "正在卸载 Shadowsocks..."
-    port=$(json_number_field "${PROTOCOL_DIR}/shadowsocks.json" "port")
-    rm -f "${PROTOCOL_DIR}/shadowsocks.json" "${CLIENT_DIR}/shadowsocks.txt"
-    rebuild_or_stop_xray
-    remove_ufw_port_rule "$port" tcp
-    remove_ufw_port_rule "$port" udp
-    pause
-}
-
 show_client_info(){
     header "连接信息"
 
-    section "Xray Core" "$GREEN"
-    echo
-    section "VLESS + TCP + XTLS Vision + REALITY" "$YELLOW"
-    echo
-    if [[ -f "${CLIENT_DIR}/vless.txt" ]]; then
-        while IFS= read -r line; do
-            if [[ "$line" == "VLESS Link:" ]]; then
-                label " VLESS Link"
-                echo
-                continue
-            fi
-            if [[ "$line" == "Mihomo / Clash:" ]]; then
-                echo
-                divider "$CYAN" "-"
-                echo
-                label " Mihomo / Clash YAML"
-                echo
-                continue
-            fi
-            value "$line"
-        done < "${CLIENT_DIR}/vless.txt"
-    else
-        warning "未配置"
-    fi
-
-    echo
-    section "Shadowsocks" "$YELLOW"
-    echo
-    if [[ -f "${CLIENT_DIR}/shadowsocks.txt" ]]; then
-        while IFS= read -r line; do
-            if [[ "$line" == "SS Link:" ]]; then
-                label " Shadowsocks Link"
-                echo
-                continue
-            fi
-            if [[ "$line" == "Mihomo / Clash:" ]]; then
-                echo
-                divider "$CYAN" "-"
-                echo
-                label " Mihomo / Clash YAML"
-                echo
-                continue
-            fi
-            value "$line"
-        done < "${CLIENT_DIR}/shadowsocks.txt"
-    else
-        warning "未配置"
-    fi
-
-    echo
-    divider "$GREEN"
-    echo
-    section "Sing-box" "$GREEN"
-    echo
-    section "VLESS + TCP + XTLS Vision + REALITY" "$YELLOW"
-    echo
-    if [[ -f "${SING_BOX_CLIENT_DIR}/vless.txt" ]]; then
-        while IFS= read -r line; do
-            if [[ "$line" == "VLESS Link:" ]]; then
-                label " VLESS Link"
-                echo
-                continue
-            fi
-            if [[ "$line" == "Mihomo / Clash:" ]]; then
-                echo
-                divider "$CYAN" "-"
-                echo
-                label " Mihomo / Clash YAML"
-                echo
-                continue
-            fi
-            value "$line"
-        done < "${SING_BOX_CLIENT_DIR}/vless.txt"
-    else
-        warning "未配置"
-    fi
-
-    echo
-    section "Shadowsocks" "$YELLOW"
-    echo
-    if [[ -f "${SING_BOX_CLIENT_DIR}/shadowsocks.txt" ]]; then
-        while IFS= read -r line; do
-            if [[ "$line" == "SS Link:" ]]; then
-                label " Shadowsocks Link"
-                echo
-                continue
-            fi
-            if [[ "$line" == "Mihomo / Clash:" ]]; then
-                echo
-                divider "$CYAN" "-"
-                echo
-                label " Mihomo / Clash YAML"
-                echo
-                continue
-            fi
-            value "$line"
-        done < "${SING_BOX_CLIENT_DIR}/shadowsocks.txt"
-    else
-        warning "未配置"
-    fi
-
-    echo
-    divider "$GREEN"
-    echo
     section "Mihomo" "$GREEN"
     echo
     section "VLESS + TCP + XTLS Vision + REALITY" "$YELLOW"
@@ -455,254 +253,6 @@ show_client_info(){
 
     pause
 }
-
-show_xray_status(){
-    header "Xray Core 状态"
-
-    local status
-    status=$(systemctl is-active "$XRAY_SERVICE" 2>/dev/null || true)
-    status=${status:-unknown}
-
-    if [[ "$status" == "active" ]]; then
-        success "Xray 状态: 运行中"
-    else
-        warning "Xray 状态: ${status}"
-    fi
-
-    echo
-    if command -v xray >/dev/null 2>&1; then
-        label "版本"
-        value "$(xray version | head -n1)"
-    else
-        warning "未检测到 Xray Core。"
-    fi
-
-    echo
-    section "协议配置" "$YELLOW"
-    echo
-    if [[ -f "${CLIENT_DIR}/vless.txt" ]]; then
-        kv "VLESS + TCP + XTLS Vision + REALITY    :" "已配置"
-    else
-        kv "VLESS + TCP + XTLS Vision + REALITY    :" "未配置"
-    fi
-
-    if [[ -f "${CLIENT_DIR}/shadowsocks.txt" ]]; then
-        kv "Shadowsocks      :" "已配置"
-    else
-        kv "Shadowsocks      :" "未配置"
-    fi
-
-    pause
-}
-
-restart_xray(){
-    header "重启 Xray"
-    info "正在重启 Xray..."
-
-    systemctl restart "$XRAY_SERVICE"
-    sleep 1
-
-    if systemctl is-active --quiet "$XRAY_SERVICE"; then
-        success "Xray 重启成功。"
-    else
-        error "Xray 重启失败。"
-    fi
-
-    pause
-}
-
-update_xray(){
-    local selection_status=0
-
-    header "安装 / 更新 Xray Core"
-
-    select_stable_version "Xray Core" "XTLS/Xray-core" || selection_status=$?
-    [[ "$selection_status" -eq "$INPUT_CANCEL_STATUS" ]] && return
-    if [[ "$selection_status" -ne 0 ]]; then
-        pause
-        return
-    fi
-
-    local install_args=(install)
-
-    if [[ -n "$SELECTED_VERSION" ]]; then
-        install_args+=(--version "$SELECTED_VERSION")
-        warning "正在安装 Xray Core ${SELECTED_VERSION}..."
-    else
-        warning "正在安装 Xray Core 最新正式稳定版..."
-    fi
-
-    bash <(
-        curl -fsSL -L \
-        https://github.com/XTLS/Xray-install/raw/main/install-release.sh
-    ) "${install_args[@]}"
-
-    echo
-    if command -v xray >/dev/null 2>&1; then
-        value "$(xray version | head -n1)"
-    fi
-
-    pause
-}
-
-install_sing_box(){
-    local selection_status=0
-
-    header "安装 / 更新 Sing-box"
-
-    select_stable_version "Sing-box" "SagerNet/sing-box" || selection_status=$?
-    [[ "$selection_status" -eq "$INPUT_CANCEL_STATUS" ]] && return
-    if [[ "$selection_status" -ne 0 ]]; then
-        pause
-        return
-    fi
-
-    if [[ -n "$SELECTED_VERSION" ]]; then
-        warning "正在安装 Sing-box ${SELECTED_VERSION}..."
-    else
-        warning "正在安装 Sing-box 最新正式稳定版..."
-    fi
-
-    run_script "$SING_BOX_INSTALL_SCRIPT" "$SELECTED_VERSION"
-    pause
-}
-
-configure_sing_box_vless(){
-    run_script_and_pause "$SING_BOX_VLESS_SCRIPT"
-}
-
-configure_sing_box_shadowsocks(){
-    run_script_and_pause "$SING_BOX_SS_SCRIPT"
-}
-
-uninstall_sing_box_vless(){
-    local port
-
-    header "卸载 Sing-box VLESS + TCP + XTLS Vision + REALITY"
-    warning "正在卸载 Sing-box VLESS + TCP + XTLS Vision + REALITY..."
-    port=$(json_number_field "${SING_BOX_PROTOCOL_DIR}/vless.json" "listen_port")
-    rm -f "${SING_BOX_PROTOCOL_DIR}/vless.json" "${SING_BOX_CLIENT_DIR}/vless.txt"
-    rebuild_or_stop_sing_box
-    remove_ufw_port_rule "$port" tcp
-    pause
-}
-
-uninstall_sing_box_shadowsocks(){
-    local port
-
-    header "卸载 Sing-box Shadowsocks"
-    warning "正在卸载 Sing-box Shadowsocks..."
-    port=$(json_number_field "${SING_BOX_PROTOCOL_DIR}/shadowsocks.json" "listen_port")
-    rm -f "${SING_BOX_PROTOCOL_DIR}/shadowsocks.json" "${SING_BOX_CLIENT_DIR}/shadowsocks.txt"
-    rebuild_or_stop_sing_box
-    remove_ufw_port_rule "$port" tcp
-    remove_ufw_port_rule "$port" udp
-    pause
-}
-
-show_sing_box_status(){
-    header "Sing-box 状态"
-
-    local status
-    status=$(systemctl is-active "$SING_BOX_SERVICE" 2>/dev/null || true)
-    status=${status:-unknown}
-
-    if [[ "$status" == "active" ]]; then
-        success "Sing-box 状态: 运行中"
-    else
-        warning "Sing-box 状态: ${status}"
-    fi
-
-    echo
-    if command -v sing-box >/dev/null 2>&1; then
-        label "版本"
-        value "$(sing-box version | head -n1)"
-    else
-        warning "未检测到 Sing-box。"
-    fi
-
-    echo
-    section "协议配置" "$YELLOW"
-    echo
-    if [[ -f "${SING_BOX_CLIENT_DIR}/vless.txt" ]]; then
-        kv "VLESS + TCP + XTLS Vision + REALITY    :" "已配置"
-    else
-        kv "VLESS + TCP + XTLS Vision + REALITY    :" "未配置"
-    fi
-
-    if [[ -f "${SING_BOX_CLIENT_DIR}/shadowsocks.txt" ]]; then
-        kv "Shadowsocks      :" "已配置"
-    else
-        kv "Shadowsocks      :" "未配置"
-    fi
-
-    pause
-}
-
-restart_sing_box(){
-    header "重启 Sing-box"
-
-    if ! command -v sing-box >/dev/null 2>&1; then
-        error "未检测到 Sing-box，请先安装。"
-        pause
-        return
-    fi
-
-    info "正在重启 Sing-box..."
-
-    if ! systemctl restart "$SING_BOX_SERVICE"; then
-        error "Sing-box 重启失败。"
-        pause
-        return
-    fi
-
-    sleep 1
-
-    if systemctl is-active --quiet "$SING_BOX_SERVICE"; then
-        success "Sing-box 重启成功。"
-    else
-        error "Sing-box 重启失败。"
-    fi
-
-    pause
-}
-
-uninstall_sing_box(){
-    local vless_port shadowsocks_port
-
-    header "卸载 Sing-box"
-    warning "即将卸载 Sing-box，并删除其配置和连接信息。"
-
-    if ! confirm_action "确认卸载 Sing-box 吗？"; then
-        warning "已取消。"
-        pause
-        return
-    fi
-
-    vless_port=$(json_number_field "${SING_BOX_PROTOCOL_DIR}/vless.json" "listen_port")
-    shadowsocks_port=$(json_number_field "${SING_BOX_PROTOCOL_DIR}/shadowsocks.json" "listen_port")
-
-    systemctl disable --now "$SING_BOX_SERVICE" 2>/dev/null || true
-    remove_ufw_port_rule "$vless_port" tcp
-    remove_ufw_port_rule "$shadowsocks_port" tcp
-    remove_ufw_port_rule "$shadowsocks_port" udp
-
-    if dpkg-query -W -f='${Status}' sing-box 2>/dev/null | grep -q "ok installed"; then
-        apt-get remove --purge -y sing-box
-    fi
-
-    rm -rf "$SING_BOX_DIR"
-    systemctl daemon-reload
-
-    if command -v sing-box >/dev/null 2>&1; then
-        warning "Sing-box 程序仍然存在，请检查是否由其他方式安装。"
-    else
-        success "Sing-box 与其配置已卸载。"
-    fi
-
-    pause
-}
-
 install_mihomo(){
     local selection_status=0
 
@@ -854,35 +404,6 @@ uninstall_mihomo(){
         success "Mihomo 与其配置已卸载。"
     fi
 
-    pause
-}
-
-uninstall_xray_core(){
-    local vless_port shadowsocks_port
-
-    header "卸载 Xray Core"
-    warning "即将卸载 Xray Core，并删除 Xray 下的 VLESS + TCP + XTLS Vision + REALITY、Shadowsocks 配置和连接信息。"
-
-    if ! confirm_action "确认卸载 Xray Core 吗？"; then
-        warning "已取消。"
-        pause
-        return
-    fi
-
-    vless_port=$(json_number_field "${PROTOCOL_DIR}/vless.json" "port")
-    shadowsocks_port=$(json_number_field "${PROTOCOL_DIR}/shadowsocks.json" "port")
-
-    systemctl disable --now "$XRAY_SERVICE" 2>/dev/null || true
-    remove_ufw_port_rule "$vless_port" tcp
-    remove_ufw_port_rule "$shadowsocks_port" tcp
-    remove_ufw_port_rule "$shadowsocks_port" udp
-    bash <(
-        curl -fsSL -L \
-        https://github.com/XTLS/Xray-install/raw/main/install-release.sh
-    ) remove --purge 2>/dev/null || true
-
-    rm -rf "$XRAY_DIR"
-    success "Xray Core 与其协议配置已卸载。"
     pause
 }
 
@@ -1962,80 +1483,14 @@ tools_menu(){
     done
 }
 
-xray_core_menu(){
-    while true; do
-        header "Xray Core"
-        menu_item "1" "安装 / 更新 Xray Core"
-        menu_item "2" "查看 Xray Core 状态"
-        menu_item "3" "配置 VLESS + TCP + XTLS Vision + REALITY"
-        menu_item "4" "卸载 VLESS + TCP + XTLS Vision + REALITY"
-        menu_item "5" "配置 Shadowsocks"
-        menu_item "6" "卸载 Shadowsocks"
-        menu_item "7" "重启 Xray"
-        menu_item "8" "卸载 Xray Core"
-        echo
-        menu_item "0" "返回主菜单"
-        echo
-
-        read -r -p "$(prompt_text "请选择: ")" choice
-        choice=${choice:-0}
-
-        case "$choice" in
-            1) update_xray ;;
-            2) show_xray_status ;;
-            3) configure_vless ;;
-            4) uninstall_vless ;;
-            5) configure_shadowsocks ;;
-            6) uninstall_shadowsocks ;;
-            7) restart_xray ;;
-            8) uninstall_xray_core ;;
-            0) return ;;
-            *) error "无效选择。"; pause ;;
-        esac
-    done
-}
-
-sing_box_menu(){
-    while true; do
-        header "Sing-box"
-        menu_item "1" "安装 / 更新 Sing-box"
-        menu_item "2" "查看 Sing-box 状态"
-        menu_item "3" "安装 VLESS + TCP + XTLS Vision + REALITY"
-        menu_item "4" "卸载 VLESS + TCP + XTLS Vision + REALITY"
-        menu_item "5" "安装 Shadowsocks"
-        menu_item "6" "卸载 Shadowsocks"
-        menu_item "7" "重启 Sing-box"
-        menu_item "8" "卸载 Sing-box"
-        echo
-        menu_item "0" "返回主菜单"
-        echo
-
-        read -r -p "$(prompt_text "请选择: ")" choice
-        choice=${choice:-0}
-
-        case "$choice" in
-            1) install_sing_box ;;
-            2) show_sing_box_status ;;
-            3) configure_sing_box_vless ;;
-            4) uninstall_sing_box_vless ;;
-            5) configure_sing_box_shadowsocks ;;
-            6) uninstall_sing_box_shadowsocks ;;
-            7) restart_sing_box ;;
-            8) uninstall_sing_box ;;
-            0) return ;;
-            *) error "无效选择。"; pause ;;
-        esac
-    done
-}
-
 mihomo_menu(){
     while true; do
         header "Mihomo"
         menu_item "1" "安装 / 更新 Mihomo"
         menu_item "2" "查看 Mihomo 状态"
-        menu_item "3" "安装 VLESS + TCP + XTLS Vision + REALITY（UDP）"
+        menu_item "3" "安装 VLESS + TCP + XTLS Vision + REALITY"
         menu_item "4" "卸载 VLESS + TCP + XTLS Vision + REALITY"
-        menu_item "5" "安装 Shadowsocks（TCP/UDP）"
+        menu_item "5" "安装 Shadowsocks"
         menu_item "6" "卸载 Shadowsocks"
         menu_item "7" "重启 Mihomo"
         menu_item "8" "卸载 Mihomo"
@@ -2066,9 +1521,7 @@ main_menu(){
         header
         section "核心入口" "$YELLOW"
         echo
-        menu_item "1" "Xray Core"
-        menu_item "2" "Sing-box"
-        menu_item "3" "Mihomo"
+        menu_item "1" "Mihomo"
         echo
         section "连接信息" "$YELLOW"
         echo
@@ -2085,9 +1538,7 @@ main_menu(){
         choice=${choice:-0}
 
         case "$choice" in
-            1) xray_core_menu ;;
-            2) sing_box_menu ;;
-            3) mihomo_menu ;;
+            1) mihomo_menu ;;
             11) show_client_info ;;
             66) tools_menu ;;
             0) exit 0 ;;

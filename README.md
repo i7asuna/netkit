@@ -1,6 +1,6 @@
 # NetKit
 
-一个用于管理网络服务、连接协议以及常用 VPS 系统工具的 Bash 管理脚本。当前支持 Xray Core、Sing-box 与 Mihomo。
+一个用于管理 Mihomo、连接协议以及常用 VPS 系统工具的 Bash 管理脚本。
 
 ## 项目定位
 
@@ -85,10 +85,6 @@ reboot
 ## 致谢
 
 本项目在部分功能中会调用优秀的第三方脚本，在此感谢这些项目和作者的开源贡献：
-
-- [XTLS/Xray-install](https://github.com/XTLS/Xray-install) 用于安装和更新 Xray Core。
-
-- [SagerNet/sing-box](https://github.com/SagerNet/sing-box) 使用官方稳定通道安装和更新 Sing-box。
 
 - [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) 提供 Mihomo 内核与 Listener 服务端能力。
 
