@@ -148,7 +148,6 @@ Mihomo / Clash:
   cipher: ${YAML_METHOD}
   password: ${YAML_PASSWORD}
   udp: true
-  tfo: true
 EOF
 
 banner "Mihomo Shadowsocks 安装成功" "$GREEN"
