@@ -1126,24 +1126,46 @@ EOF
 }
 
 system_tuning(){
+    local congestion_control=""
+    local choice
+
+    while [[ -z "$congestion_control" ]]; do
+        header "系统调优"
+        section "请选择 TCP 拥塞控制算法" "$YELLOW"
+        menu_item "1" "BBR"
+        menu_item "2" "CUBIC"
+        echo
+        menu_item "0" "返回"
+        echo
+        read -r -p "$(prompt_text "请选择: ")" choice
+        choice=${choice:-0}
+
+        case "$choice" in
+            1) congestion_control="bbr" ;;
+            2) congestion_control="cubic" ;;
+            0) return ;;
+            *) error "无效选择。"; pause ;;
+        esac
+    done
+
     header "系统调优"
-    info "正在应用系统调优..."
+    info "正在应用系统调优（${congestion_control^^}）..."
 
     modprobe nf_conntrack 2>/dev/null || true
-    modprobe tcp_bbr 2>/dev/null || true
+    modprobe "tcp_${congestion_control}" 2>/dev/null || true
     modprobe sch_fq 2>/dev/null || true
 
-    if ! sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null | grep -qw bbr; then
-        error "当前内核不支持 BBR，无法应用系统调优。"
+    if ! sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null | grep -qw "$congestion_control"; then
+        error "当前内核不支持 ${congestion_control^^}，无法应用系统调优。"
         pause
         return
     fi
 
     echo "nf_conntrack" > /etc/modules-load.d/nf_conntrack.conf
 
-    cat > "$SYSCTL_CONFIG" <<'EOF'
+    cat > "$SYSCTL_CONFIG" <<EOF
 net.core.default_qdisc = fq
-net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_congestion_control = ${congestion_control}
 
 net.netfilter.nf_conntrack_max = 32768
 net.netfilter.nf_conntrack_udp_timeout = 30

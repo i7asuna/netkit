@@ -352,4 +352,4 @@ else
     info "旧内核清理已安排在首次成功启动 XanMod 后自动执行。"
 fi
 info "请重启后执行 uname -r，确认输出包含 xanmod。"
-info "确认新内核启动成功后，再从“系统调优”应用 BBR + FQ。"
+info "确认新内核启动成功后，再从“系统调优”选择 BBR 并应用。"
