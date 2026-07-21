@@ -35,6 +35,7 @@ CF_TEST_RECORD_ID=""
 INSTALLER_FILE=""
 ARCHIVE_DIR=""
 ERROR_REPORTED=false
+MASKED_INPUT=""
 
 on_error(){
     local status="$1"
@@ -165,7 +166,7 @@ prompt_domain(){
     local input
 
     while true; do
-        read -r -p "$(prompt_text "请输入证书完整域名（例如 hy.example.com，输入 0 取消）: ")" input
+        read -r -p "$(prompt_text "请输入证书完整域名（输入 0 取消）: ")" input
         input=$(trim_edges "$input")
         input="${input%.}"
         input="${input,,}"
@@ -181,21 +182,61 @@ prompt_domain(){
     done
 }
 
+read_secret_masked(){
+    local message="$1"
+    local char
+
+    MASKED_INPUT=""
+    printf '%b' "$(prompt_text "$message")"
+
+    while true; do
+        if ! IFS= read -r -s -n 1 char; then
+            echo
+            return 1
+        fi
+
+        if [[ -z "$char" ]]; then
+            echo
+            return 0
+        fi
+
+        case "$char" in
+            $'\177'|$'\b')
+                if [[ -n "$MASKED_INPUT" ]]; then
+                    MASKED_INPUT="${MASKED_INPUT%?}"
+                    printf '\b \b'
+                fi
+                ;;
+            *)
+                MASKED_INPUT+="$char"
+                printf '*'
+                ;;
+        esac
+    done
+}
+
 prompt_token(){
     local input
 
     while true; do
-        read -r -s -p "$(prompt_text "请输入 Cloudflare API Token（输入隐藏，输入 0 取消）: ")" input
-        echo
+        if ! read_secret_masked "请输入 Cloudflare API Token（输入显示为 *，输入 0 取消）: "; then
+            error "读取 Cloudflare API Token 失败。"
+            return 1
+        fi
+        input="$MASKED_INPUT"
+        MASKED_INPUT=""
 
         if [[ "$input" == "0" ]]; then
             warning "已取消。"
             return "$INPUT_CANCEL_STATUS"
         fi
-        if [[ "$input" =~ ^[A-Za-z0-9._-]{20,256}$ ]]; then
+        if [[ "${#input}" -ge 20 && "${#input}" -le 256 ]] && \
+           [[ "$input" =~ ^[A-Za-z0-9._-]+$ ]]; then
             CF_TOKEN="$input"
+            input=""
             return 0
         fi
+        input=""
         error "Token 格式无效或为空。请重新输入 Cloudflare API Token。"
     done
 }
