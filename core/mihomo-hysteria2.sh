@@ -574,7 +574,6 @@ show_result() {
     sed -n '/^Mihomo \/ Clash:/,$p' "${CLIENT_FILE}" | tail -n +2 | while IFS= read -r line; do
         value "${line}"
     done
-    warning "如果云服务商启用了安全组或云防火墙，还需要放行 ${HOP_START}-${HOP_END}/UDP。"
     echo
     divider "$GREEN"
 }
