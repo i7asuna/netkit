@@ -8,24 +8,41 @@ DEBIAN_REINSTALL_SCRIPT_URL="https://raw.githubusercontent.com/bin456789/reinsta
 run_ip_quality_test(){
     local temp_dir=""
     local status=0
+    local report_generated=0
 
     header "IP 质量检测"
     ensure_apt_package curl
 
-    if (
+    if ! (
         temp_dir=$(mktemp -d) || exit 1
-        trap 'rm -rf -- "$temp_dir"' EXIT
+        trap '[[ -n "$temp_dir" ]] && rm -rf -- "$temp_dir"' EXIT
         curl -fsSL "$IP_QUALITY_SCRIPT_URL" -o "${temp_dir}/ip-quality.sh" || exit 1
         cd "$temp_dir" || exit 1
-        bash ./ip-quality.sh
-    ); then
-        :
-    else
-        status=$?
-        error "IP 质量检测未完成（退出码：${status}）。"
-    fi
 
-    pause
+        if bash ./ip-quality.sh 2>&1 | tee ./ip-quality-output.log; then
+            status=0
+        else
+            status=${PIPESTATUS[0]}
+        fi
+
+        if grep -Eq 'IP质量体检报告|IP QUALITY CHECK REPORT|感谢使用xy系列脚本|Thanks for running xy scripts' \
+            ./ip-quality-output.log; then
+            report_generated=1
+        fi
+
+        echo
+        read -r -p "$(prompt_text "按 Enter 删除 IP 质量检测脚本...")"
+        rm -rf -- "$temp_dir"
+        temp_dir=""
+        success "IP 质量检测脚本已删除。"
+
+        if (( status != 0 && report_generated == 0 )); then
+            exit "$status"
+        fi
+    ); then
+        error "IP 质量检测未完成。"
+        pause
+    fi
 }
 
 ensure_nexttrace(){
