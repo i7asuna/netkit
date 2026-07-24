@@ -3,6 +3,7 @@
 
 IP_QUALITY_SCRIPT_URL="https://IP.Check.Place"
 NEXTTRACE_INSTALLER_URL="https://nxtrace.org/nt"
+NEXTTRACE_BIN_PATH="/usr/local/bin/nexttrace"
 DEBIAN_REINSTALL_SCRIPT_URL="https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh"
 
 run_ip_quality_test(){
@@ -49,14 +50,18 @@ run_ip_quality_test(){
     fi
 }
 
-ensure_nexttrace(){
+install_nexttrace(){
     local temp_dir=""
 
-    if command -v nexttrace >/dev/null 2>&1; then
-        return 0
+    header "安装 NextTrace"
+    if [[ -x "$NEXTTRACE_BIN_PATH" ]]; then
+        warning "NextTrace 已安装。"
+        path_kv "安装位置:" "$NEXTTRACE_BIN_PATH"
+        "$NEXTTRACE_BIN_PATH" --version || true
+        pause
+        return
     fi
 
-    header "安装 NextTrace"
     ensure_apt_package curl
     info "正在安装 NextTrace..."
 
@@ -65,21 +70,53 @@ ensure_nexttrace(){
         trap 'rm -rf -- "$temp_dir"' EXIT
         curl -fsSL "$NEXTTRACE_INSTALLER_URL" -o "${temp_dir}/nexttrace-installer.sh" || exit 1
         cd "$temp_dir" || exit 1
-        bash ./nexttrace-installer.sh
+        bash ./nexttrace-installer.sh --system
     ); then
         error "NextTrace 安装失败。"
-        return 1
+        pause
+        return
     fi
 
     hash -r
-    if ! command -v nexttrace >/dev/null 2>&1; then
+    if [[ ! -x "$NEXTTRACE_BIN_PATH" ]]; then
         error "NextTrace 已执行安装，但未找到 nexttrace 命令。"
-        return 1
+        pause
+        return
     fi
 
-    success "NextTrace 安装完成，可直接使用 nexttrace 命令。"
+    success "NextTrace 安装完成。"
+    path_kv "安装位置:" "$NEXTTRACE_BIN_PATH"
+    pause
 }
 
+require_nexttrace(){
+    if command -v nexttrace >/dev/null 2>&1; then
+        return 0
+    fi
+
+    error "NextTrace 尚未安装，请先选择安装 NextTrace。"
+    return 1
+}
+
+uninstall_nexttrace(){
+    header "卸载 NextTrace"
+
+    if [[ ! -e "$NEXTTRACE_BIN_PATH" ]]; then
+        warning "未找到由 NetKit 安装的 NextTrace。"
+        pause
+        return
+    fi
+
+    if ! rm -f -- "$NEXTTRACE_BIN_PATH"; then
+        error "NextTrace 卸载失败。"
+        pause
+        return
+    fi
+
+    hash -r
+    success "NextTrace 已卸载。"
+    pause
+}
 valid_nexttrace_packet_size(){
     [[ "$1" =~ ^[0-9]+$ ]] && (( 10#$1 >= 64 && 10#$1 <= 65535 ))
 }
@@ -89,7 +126,7 @@ run_nexttrace_packet_trace(){
     local target
     local status=0
 
-    if ! ensure_nexttrace; then
+    if ! require_nexttrace; then
         pause
         return
     fi
@@ -130,9 +167,13 @@ run_nexttrace_custom_packet_trace(){
 nexttrace_packet_menu(){
     while true; do
         header "NextTrace 大小包追踪"
-        menu_item "1" "小包追踪（64 字节）"
-        menu_item "2" "大包追踪（1400 字节）"
-        menu_item "3" "自定义包大小"
+        menu_item "1" "安装 NextTrace"
+        echo
+        menu_item "2" "小包追踪（64 字节）"
+        menu_item "3" "大包追踪（1400 字节）"
+        menu_item "4" "自定义包大小"
+        echo
+        menu_item "5" "卸载 NextTrace"
         echo
         menu_item "0" "返回"
         echo
@@ -140,15 +181,16 @@ nexttrace_packet_menu(){
         choice=${choice:-0}
 
         case "$choice" in
-            1) run_nexttrace_packet_trace 64 ;;
-            2) run_nexttrace_packet_trace 1400 ;;
-            3) run_nexttrace_custom_packet_trace ;;
+            1) install_nexttrace ;;
+            2) run_nexttrace_packet_trace 64 ;;
+            3) run_nexttrace_packet_trace 1400 ;;
+            4) run_nexttrace_custom_packet_trace ;;
+            5) uninstall_nexttrace ;;
             0) return ;;
             *) error "无效选择。"; pause ;;
         esac
     done
 }
-
 dd_debian(){
     local temp_dir=""
     local status=0
