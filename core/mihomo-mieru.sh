@@ -69,7 +69,7 @@ write_client_proxy(){
   udp: true
   username: ${YAML_USERNAME}
   password: ${YAML_PASSWORD}
-  multiplexing: MULTIPLEXING_HIGH
+  multiplexing: ${MULTIPLEXING}
 EOF
 }
 
@@ -114,9 +114,9 @@ SERVER_IP=$(
 )
 
 echo
-menu_item "1" "TCP（UDP Relay 经 TCP）"
-menu_item "2" "UDP（原生 UDP）"
-menu_item "3" "TCP + UDP（相同端口双监听）"
+menu_item "1" "TCP"
+menu_item "2" "UDP"
+menu_item "3" "TCP + UDP"
 echo
 menu_item "0" "取消"
 echo
@@ -140,6 +140,38 @@ case "$TRANSPORT_CHOICE" in
         ;;
     0)
         cancel_input "$TRANSPORT_CHOICE"
+        exit "$INPUT_CANCEL_STATUS"
+        ;;
+    *)
+        error "无效选择。"
+        exit 1
+        ;;
+esac
+echo
+menu_item "1" "OFF"
+menu_item "2" "LOW（官方建议）"
+menu_item "3" "MIDDLE"
+menu_item "4" "HIGH"
+echo
+menu_item "0" "取消"
+echo
+read -r -p "$(prompt_text "请选择 Mieru 多路复用级别: ")" MULTIPLEXING_CHOICE
+
+case "$MULTIPLEXING_CHOICE" in
+    1)
+        MULTIPLEXING="MULTIPLEXING_OFF"
+        ;;
+    2)
+        MULTIPLEXING="MULTIPLEXING_LOW"
+        ;;
+    3)
+        MULTIPLEXING="MULTIPLEXING_MIDDLE"
+        ;;
+    4)
+        MULTIPLEXING="MULTIPLEXING_HIGH"
+        ;;
+    0)
+        cancel_input "$MULTIPLEXING_CHOICE"
         exit "$INPUT_CANCEL_STATUS"
         ;;
     *)
@@ -259,10 +291,10 @@ YAML_PASSWORD=$(yaml_quote "$PASSWORD")
 TCP_LINK=""
 UDP_LINK=""
 if $NEW_HAS_TCP; then
-    TCP_LINK="mierus://${USERNAME}:${PASSWORD}@${LINK_HOST}?profile=default&multiplexing=MULTIPLEXING_HIGH&port=${PORT}&protocol=TCP"
+    TCP_LINK="mierus://${USERNAME}:${PASSWORD}@${LINK_HOST}?profile=default&multiplexing=${MULTIPLEXING}&port=${PORT}&protocol=TCP"
 fi
 if $NEW_HAS_UDP; then
-    UDP_LINK="mierus://${USERNAME}:${PASSWORD}@${LINK_HOST}?profile=default&multiplexing=MULTIPLEXING_HIGH&port=${PORT}&protocol=UDP"
+    UDP_LINK="mierus://${USERNAME}:${PASSWORD}@${LINK_HOST}?profile=default&multiplexing=${MULTIPLEXING}&port=${PORT}&protocol=UDP"
 fi
 
 {
@@ -290,6 +322,7 @@ banner "Mihomo Mieru 安装成功" "$GREEN"
 kv "Server IP :" "$SERVER_IP"
 kv "Port      :" "$PORT"
 kv "Transport :" "$DISPLAY_TRANSPORT"
+kv "Multiplex :" "${MULTIPLEXING#MULTIPLEXING_}"
 kv "Username  :" "$USERNAME"
 kv "Password  :" "$PASSWORD"
 if $NEW_HAS_UDP; then
