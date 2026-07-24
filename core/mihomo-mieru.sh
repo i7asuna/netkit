@@ -13,7 +13,6 @@ PROTOCOL_CONFIG="${MIHOMO_DIR}/protocols/mieru.yaml"
 CLIENT_FILE="${MIHOMO_DIR}/client/mieru.txt"
 BUILD_CONFIG_SCRIPT="${SCRIPT_DIR}/config/mihomo-build-config.sh"
 MIN_MIHOMO_VERSION="1.19.21"
-TRANSPORT="TCP"
 
 rollback_config(){
     if [[ -n "$PROTOCOL_BACKUP" && -f "$PROTOCOL_BACKUP" ]]; then
@@ -27,6 +26,51 @@ rollback_config(){
     else
         rm -f "$CONFIG_FILE"
     fi
+}
+
+cleanup_new_firewall_rules(){
+    if $NEW_HAS_TCP; then
+        if [[ "$OLD_PORT" != "$PORT" ]] || ! $OLD_HAS_TCP; then
+            remove_ufw_port_rule "$PORT" tcp
+        fi
+    fi
+
+    if $NEW_HAS_UDP; then
+        if [[ "$OLD_PORT" != "$PORT" ]] || ! $OLD_HAS_UDP; then
+            remove_ufw_port_rule "$PORT" udp
+        fi
+    fi
+}
+
+write_server_listener(){
+    local name="$1"
+    local transport="$2"
+
+    cat >> "$PROTOCOL_CONFIG" <<EOF
+  - name: ${name}
+    type: mieru
+    port: ${PORT}
+    listen: 0.0.0.0
+    transport: ${transport}
+    users:
+      "${USERNAME}": "${PASSWORD}"
+EOF
+}
+
+write_client_proxy(){
+    local transport="$1"
+
+    cat >> "$CLIENT_FILE" <<EOF
+- name: Mihomo Mieru ${transport}
+  type: mieru
+  server: ${YAML_SERVER}
+  port: ${PORT}
+  transport: ${transport}
+  udp: true
+  username: ${YAML_USERNAME}
+  password: ${YAML_PASSWORD}
+  multiplexing: MULTIPLEXING_HIGH
+EOF
 }
 
 for package in curl openssl coreutils iproute2; do
@@ -69,6 +113,41 @@ SERVER_IP=$(
     echo "Unknown"
 )
 
+echo
+menu_item "1" "TCP（UDP Relay 经 TCP）"
+menu_item "2" "UDP（原生 UDP）"
+menu_item "3" "TCP + UDP（相同端口双监听）"
+echo
+menu_item "0" "取消"
+echo
+read -r -p "$(prompt_text "请选择 Mieru 传输模式: ")" TRANSPORT_CHOICE
+
+NEW_HAS_TCP=false
+NEW_HAS_UDP=false
+case "$TRANSPORT_CHOICE" in
+    1)
+        NEW_HAS_TCP=true
+        DISPLAY_TRANSPORT="TCP"
+        ;;
+    2)
+        NEW_HAS_UDP=true
+        DISPLAY_TRANSPORT="UDP"
+        ;;
+    3)
+        NEW_HAS_TCP=true
+        NEW_HAS_UDP=true
+        DISPLAY_TRANSPORT="TCP + UDP"
+        ;;
+    0)
+        cancel_input "$TRANSPORT_CHOICE"
+        exit "$INPUT_CANCEL_STATUS"
+        ;;
+    *)
+        error "无效选择。"
+        exit 1
+        ;;
+esac
+
 read -r -p "$(prompt_text "端口（1-19999，留空随机，输入 0 取消）： ")" PORT
 cancel_input "$PORT" && exit "$INPUT_CANCEL_STATUS"
 PORT=$(resolve_port "$PORT" 1 19999) || exit 1
@@ -81,6 +160,16 @@ if [[ -z "$USERNAME" || -z "$PASSWORD" ]]; then
 fi
 
 OLD_PORT=$(yaml_number_field "$PROTOCOL_CONFIG" "port")
+OLD_HAS_TCP=false
+OLD_HAS_UDP=false
+if [[ -f "$PROTOCOL_CONFIG" ]]; then
+    if grep -Eq '^[[:space:]]*transport:[[:space:]]*"?TCP"?[[:space:]]*$' "$PROTOCOL_CONFIG"; then
+        OLD_HAS_TCP=true
+    fi
+    if grep -Eq '^[[:space:]]*transport:[[:space:]]*"?UDP"?[[:space:]]*$' "$PROTOCOL_CONFIG"; then
+        OLD_HAS_UDP=true
+    fi
+fi
 
 PROTOCOL_BACKUP=""
 if [[ -f "$PROTOCOL_CONFIG" ]]; then
@@ -95,36 +184,43 @@ if [[ -f "$CONFIG_FILE" ]]; then
 fi
 
 info "正在写入 Mihomo Mieru Listener..."
-cat > "$PROTOCOL_CONFIG" <<EOF
-  - name: mieru-in
-    type: mieru
-    port: ${PORT}
-    listen: 0.0.0.0
-    transport: ${TRANSPORT}
-    users:
-      "${USERNAME}": "${PASSWORD}"
-EOF
+: > "$PROTOCOL_CONFIG"
+if $NEW_HAS_TCP; then
+    write_server_listener "mieru-tcp-in" "TCP"
+fi
+if $NEW_HAS_UDP; then
+    write_server_listener "mieru-udp-in" "UDP"
+fi
 
 if ! bash "$BUILD_CONFIG_SCRIPT"; then
     rollback_config
     exit 1
 fi
 
+FIREWALL_FAILED=false
 if command -v ufw >/dev/null 2>&1; then
-    if ! ufw allow "${PORT}/tcp" comment "Mihomo Mieru TCP" >/dev/null; then
-        rollback_config
-        error "Mieru 防火墙规则添加失败。"
-        exit 1
+    if $NEW_HAS_TCP && \
+       ! ufw allow "${PORT}/tcp" comment "Mihomo Mieru TCP" >/dev/null; then
+        FIREWALL_FAILED=true
     fi
+    if $NEW_HAS_UDP && \
+       ! ufw allow "${PORT}/udp" comment "Mihomo Mieru UDP" >/dev/null; then
+        FIREWALL_FAILED=true
+    fi
+fi
+
+if $FIREWALL_FAILED; then
+    rollback_config
+    cleanup_new_firewall_rules
+    error "Mieru 防火墙规则添加失败。"
+    exit 1
 fi
 
 info "正在启动 Mihomo..."
 if ! systemctl restart mihomo; then
     rollback_config
     systemctl restart mihomo 2>/dev/null || true
-    if [[ "$OLD_PORT" != "$PORT" ]]; then
-        remove_ufw_port_rule "$PORT" tcp
-    fi
+    cleanup_new_firewall_rules
     error "Mihomo 启动失败。"
     journalctl -u mihomo -n 20 --no-pager
     exit 1
@@ -134,9 +230,7 @@ sleep 1
 if ! systemctl is-active --quiet mihomo; then
     rollback_config
     systemctl restart mihomo 2>/dev/null || true
-    if [[ "$OLD_PORT" != "$PORT" ]]; then
-        remove_ufw_port_rule "$PORT" tcp
-    fi
+    cleanup_new_firewall_rules
     error "Mihomo 启动失败。"
     journalctl -u mihomo -n 20 --no-pager
     exit 1
@@ -145,43 +239,75 @@ fi
 [[ -n "$PROTOCOL_BACKUP" ]] && rm -f "$PROTOCOL_BACKUP"
 [[ -n "$CONFIG_BACKUP" ]] && rm -f "$CONFIG_BACKUP"
 
-if [[ -n "$OLD_PORT" && "$OLD_PORT" != "$PORT" ]]; then
-    remove_ufw_port_rule "$OLD_PORT" tcp
+if [[ -n "$OLD_PORT" ]]; then
+    if $OLD_HAS_TCP; then
+        if [[ "$OLD_PORT" != "$PORT" ]] || ! $NEW_HAS_TCP; then
+            remove_ufw_port_rule "$OLD_PORT" tcp
+        fi
+    fi
+    if $OLD_HAS_UDP; then
+        if [[ "$OLD_PORT" != "$PORT" ]] || ! $NEW_HAS_UDP; then
+            remove_ufw_port_rule "$OLD_PORT" udp
+        fi
+    fi
 fi
 
 LINK_HOST=$(uri_host "$SERVER_IP")
 YAML_SERVER=$(yaml_quote "$SERVER_IP")
 YAML_USERNAME=$(yaml_quote "$USERNAME")
 YAML_PASSWORD=$(yaml_quote "$PASSWORD")
-MIERU_LINK="mierus://${USERNAME}:${PASSWORD}@${LINK_HOST}?profile=default&multiplexing=MULTIPLEXING_HIGH&port=${PORT}&protocol=${TRANSPORT}"
+TCP_LINK=""
+UDP_LINK=""
+if $NEW_HAS_TCP; then
+    TCP_LINK="mierus://${USERNAME}:${PASSWORD}@${LINK_HOST}?profile=default&multiplexing=MULTIPLEXING_HIGH&port=${PORT}&protocol=TCP"
+fi
+if $NEW_HAS_UDP; then
+    UDP_LINK="mierus://${USERNAME}:${PASSWORD}@${LINK_HOST}?profile=default&multiplexing=MULTIPLEXING_HIGH&port=${PORT}&protocol=UDP"
+fi
 
-cat > "$CLIENT_FILE" <<EOF
-Mieru Link:
-${MIERU_LINK}
+{
+    echo "Mieru Link:"
+    if $NEW_HAS_TCP && $NEW_HAS_UDP; then
+        echo "TCP: ${TCP_LINK}"
+        echo "UDP: ${UDP_LINK}"
+    elif $NEW_HAS_TCP; then
+        echo "$TCP_LINK"
+    else
+        echo "$UDP_LINK"
+    fi
+    echo
+    echo "Mihomo / Clash:"
+} > "$CLIENT_FILE"
 
-Mihomo / Clash:
-- name: Mihomo Mieru
-  type: mieru
-  server: ${YAML_SERVER}
-  port: ${PORT}
-  transport: ${TRANSPORT}
-  udp: true
-  username: ${YAML_USERNAME}
-  password: ${YAML_PASSWORD}
-  multiplexing: MULTIPLEXING_HIGH
-EOF
+if $NEW_HAS_TCP; then
+    write_client_proxy "TCP"
+fi
+if $NEW_HAS_UDP; then
+    write_client_proxy "UDP"
+fi
 
 banner "Mihomo Mieru 安装成功" "$GREEN"
 kv "Server IP :" "$SERVER_IP"
 kv "Port      :" "$PORT"
-kv "Transport :" "$TRANSPORT"
+kv "Transport :" "$DISPLAY_TRANSPORT"
 kv "Username  :" "$USERNAME"
 kv "Password  :" "$PASSWORD"
-kv "UDP Relay :" "已开启（经 TCP）"
+if $NEW_HAS_UDP; then
+    kv "Native UDP:" "已开启"
+else
+    kv "UDP Relay :" "已开启（经 TCP）"
+fi
 echo
-label " Mieru Link"
-value "$MIERU_LINK"
-echo
+if $NEW_HAS_TCP; then
+    label " Mieru TCP Link"
+    value "$TCP_LINK"
+    echo
+fi
+if $NEW_HAS_UDP; then
+    label " Mieru UDP Link"
+    value "$UDP_LINK"
+    echo
+fi
 path_kv "主配置文件      :" "$CONFIG_FILE"
 path_kv "协议配置文件    :" "$PROTOCOL_CONFIG"
 path_kv "连接信息文件    :" "$CLIENT_FILE"

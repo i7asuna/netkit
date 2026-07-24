@@ -307,14 +307,26 @@ uninstall_mihomo_shadowsocks(){
 }
 
 uninstall_mihomo_mieru(){
-    local port
+    local port transports
 
     header "卸载 Mihomo Mieru"
     warning "正在卸载 Mihomo Mieru..."
     port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/mieru.yaml" "port")
+    transports=$(
+        sed -nE 's/^[[:space:]]*transport:[[:space:]]*"?([A-Za-z]+)"?[[:space:]]*$/\1/p' \
+            "${MIHOMO_PROTOCOL_DIR}/mieru.yaml" 2>/dev/null |
+        tr '[:upper:]' '[:lower:]' |
+        sort -u ||
+        true
+    )
     rm -f "${MIHOMO_PROTOCOL_DIR}/mieru.yaml" "${MIHOMO_CLIENT_DIR}/mieru.txt"
     rebuild_or_stop_mihomo
-    remove_ufw_port_rule "$port" tcp
+    if grep -qx 'tcp' <<< "$transports"; then
+        remove_ufw_port_rule "$port" tcp
+    fi
+    if grep -qx 'udp' <<< "$transports"; then
+        remove_ufw_port_rule "$port" udp
+    fi
     success "Mihomo Mieru 已卸载。"
     pause
 }
@@ -345,7 +357,7 @@ show_mihomo_logs(){
 show_mihomo_core(){
     header "Mihomo 核心"
 
-    local status
+    local status mieru_transports
     status=$(systemctl is-active "$MIHOMO_SERVICE" 2>/dev/null || true)
     status=${status:-unknown}
 
@@ -385,7 +397,16 @@ show_mihomo_core(){
     fi
 
     if [[ -f "${MIHOMO_CLIENT_DIR}/mieru.txt" ]]; then
-        kv "Mieru           :" "已配置（TCP，UDP Relay 已开启）"
+        mieru_transports=$(
+            sed -nE 's/^[[:space:]]*transport:[[:space:]]*"?([A-Za-z]+)"?[[:space:]]*$/\1/p' \
+                "${MIHOMO_PROTOCOL_DIR}/mieru.yaml" 2>/dev/null |
+            tr '[:lower:]' '[:upper:]' |
+            sort -u |
+            paste -sd+ - ||
+            true
+        )
+        mieru_transports=${mieru_transports//+/ + }
+        kv "Mieru           :" "已配置（${mieru_transports:-未知}）"
     else
         kv "Mieru           :" "未配置"
     fi
@@ -420,7 +441,7 @@ restart_mihomo(){
 }
 
 uninstall_mihomo(){
-    local hysteria2_port vless_port shadowsocks_port mieru_port
+    local hysteria2_port vless_port shadowsocks_port mieru_port mieru_transports
 
     header "卸载 Mihomo"
     warning "即将卸载 Mihomo，并删除其配置和连接信息。"
@@ -435,6 +456,13 @@ uninstall_mihomo(){
     vless_port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/vless.yaml" "port")
     shadowsocks_port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/shadowsocks.yaml" "port")
     mieru_port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/mieru.yaml" "port")
+    mieru_transports=$(
+        sed -nE 's/^[[:space:]]*transport:[[:space:]]*"?([A-Za-z]+)"?[[:space:]]*$/\1/p' \
+            "${MIHOMO_PROTOCOL_DIR}/mieru.yaml" 2>/dev/null |
+        tr '[:upper:]' '[:lower:]' |
+        sort -u ||
+        true
+    )
 
     remove_mihomo_hysteria2_port_hopping "${hysteria2_port:-${MIHOMO_HY2_HOP_START}}"
     systemctl disable --now "$MIHOMO_SERVICE" 2>/dev/null || true
@@ -442,7 +470,12 @@ uninstall_mihomo(){
     remove_ufw_port_rule "$vless_port" udp
     remove_ufw_port_rule "$shadowsocks_port" tcp
     remove_ufw_port_rule "$shadowsocks_port" udp
-    remove_ufw_port_rule "$mieru_port" tcp
+    if grep -qx 'tcp' <<< "$mieru_transports"; then
+        remove_ufw_port_rule "$mieru_port" tcp
+    fi
+    if grep -qx 'udp' <<< "$mieru_transports"; then
+        remove_ufw_port_rule "$mieru_port" udp
+    fi
 
     rm -f /usr/local/bin/mihomo /etc/systemd/system/mihomo.service
     rm -rf "$MIHOMO_DIR"
