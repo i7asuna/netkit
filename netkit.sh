@@ -22,6 +22,8 @@ source "${SCRIPT_DIR}/modules/swap.sh"
 source "${SCRIPT_DIR}/modules/system.sh"
 # shellcheck source=/root/netkit/modules/network.sh
 source "${SCRIPT_DIR}/modules/network.sh"
+# shellcheck source=/root/netkit/modules/external-tools.sh
+source "${SCRIPT_DIR}/modules/external-tools.sh"
 # shellcheck source=/root/netkit/modules/tools-menu.sh
 source "${SCRIPT_DIR}/modules/tools-menu.sh"
 

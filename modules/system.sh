@@ -6,39 +6,6 @@ TIMEZONE="Asia/Hong_Kong"
 XANMOD_APT_SOURCE="/etc/apt/sources.list.d/xanmod-release.list"
 XANMOD_UNATTENDED_CONFIG="/etc/apt/apt.conf.d/52unattended-upgrades-xanmod"
 
-run_vps_test(){
-    header "VPS 测试"
-    warning "即将运行 VPS 测试脚本。"
-
-    if ! confirm_action "确认运行 VPS 测试脚本吗？"; then
-        warning "已取消。"
-        pause
-        return
-    fi
-
-    apt update
-    apt install wget curl -y
-    bash <(curl -sL https://run.NodeQuality.com)
-    exit 0
-}
-
-dd_debian(){
-    header "DD 系统 Debian"
-    warning "即将 DD 安装 Debian，执行后系统可能重装并断开连接。"
-
-    if ! confirm_action "确认 DD 安装 Debian 吗？"; then
-        warning "已取消。"
-        pause
-        return
-    fi
-
-    apt update
-    apt install wget curl -y
-    curl -O https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh
-    bash reinstall.sh debian
-    exit 0
-}
-
 install_xanmod_kernel(){
     if ! run_script "$XANMOD_SCRIPT"; then
         error "XanMod 内核安装未完成。"

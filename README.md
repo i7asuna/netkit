@@ -90,7 +90,9 @@ reboot
 
 - [bin456789/reinstall](https://github.com/bin456789/reinstall) 用于 DD / 重装 Debian 系统。
 
-- [NodeQuality](https://github.com/LloydAsp/NodeQuality) 用于 VPS 质量与网络测试。
+- [xykt/IPQuality](https://github.com/xykt/IPQuality) 用于 IP 质量检测。
+
+- [nxtrace/NTrace-core](https://github.com/nxtrace/NTrace-core) 用于大小包路由追踪。
 
 - [XanMod 官方内核](https://xanmod.org/) 用于在受支持的 Debian/Ubuntu x86_64 系统上安装包含 BBRv3 的 XanMod 内核。
 
