@@ -407,7 +407,7 @@ check_dns_resolution(){
     if [[ -z "$ipv4" && -z "$ipv6" ]]; then
         warning "没有 A/AAAA 记录不会阻止 DNS-01 申请证书。"
     fi
-    warning "Hysteria2 正式连接前，${DOMAIN} 必须有指向本服务器的正确 A 或 AAAA 记录。"
+    warning "使用该证书提供服务前，${DOMAIN} 必须有指向本服务器的正确 A 或 AAAA 记录。"
 }
 
 domain_conf_path(){
@@ -647,19 +647,6 @@ show_cron_status(){
     fi
 }
 
-show_hysteria2_tls_example(){
-    echo
-    section "Mihomo Hysteria2 Listener TLS 示例" "$YELLOW"
-    echo
-    value "listeners:"
-    value "  - name: hy-in"
-    value "    type: hysteria2"
-    value "    certificate: ${CERT_FILE}"
-    value "    private-key: ${KEY_FILE}"
-    echo
-    warning "以上 certificate/private-key 字段来自 Mihomo 当前 Hysteria2 listener 配置格式。"
-}
-
 archive_current_certificate(){
     local old_domain="$1"
     local timestamp
@@ -721,7 +708,6 @@ configure_new_certificate(){
     fi
     verify_certificate
     show_cron_status
-    show_hysteria2_tls_example
 }
 
 normal_renewal_check(){
@@ -807,7 +793,6 @@ existing_certificate_menu(){
             5)
                 verify_certificate || true
                 show_cron_status
-                show_hysteria2_tls_example
                 pause
                 ;;
             0) return 0 ;;
