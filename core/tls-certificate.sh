@@ -676,6 +676,19 @@ show_cron_status(){
     fi
 }
 
+show_hysteria2_tls_example(){
+    echo
+    section "Mihomo Hysteria2 Listener TLS 示例" "$YELLOW"
+    echo
+    value "listeners:"
+    value "  - name: hy-in"
+    value "    type: hysteria2"
+    value "    certificate: ${CERT_FILE}"
+    value "    private-key: ${KEY_FILE}"
+    echo
+    warning "以上 certificate/private-key 字段来自 Mihomo 当前 Hysteria2 listener 配置格式。"
+}
+
 archive_current_certificate(){
     local old_domain="$1"
     local timestamp
@@ -789,6 +802,7 @@ configure_new_certificate(){
     fi
     delete_archived_certificate
     show_cron_status
+    show_hysteria2_tls_example
 }
 
 normal_renewal_check(){
@@ -874,6 +888,7 @@ existing_certificate_menu(){
             5)
                 verify_certificate || true
                 show_cron_status
+                show_hysteria2_tls_example
                 pause
                 ;;
             0) return 0 ;;

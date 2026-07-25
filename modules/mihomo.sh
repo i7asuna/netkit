@@ -5,6 +5,8 @@ MIHOMO_INSTALL_SCRIPT="${SCRIPT_DIR}/core/mihomo-core.sh"
 MIHOMO_VLESS_SCRIPT="${SCRIPT_DIR}/core/mihomo-vless-reality.sh"
 MIHOMO_SS_SCRIPT="${SCRIPT_DIR}/core/mihomo-shadowsocks.sh"
 MIHOMO_MIERU_SCRIPT="${SCRIPT_DIR}/core/mihomo-mieru.sh"
+MIHOMO_HY2_SCRIPT="${SCRIPT_DIR}/core/mihomo-hysteria2.sh"
+MIHOMO_HY2_HOP_SCRIPT="${SCRIPT_DIR}/core/mihomo-hysteria2-port-hopping.sh"
 MIHOMO_TRUSTTUNNEL_SCRIPT="${SCRIPT_DIR}/core/mihomo-trusttunnel.sh"
 TLS_CERT_SCRIPT="${SCRIPT_DIR}/core/tls-certificate.sh"
 MIHOMO_BUILD_CONFIG_SCRIPT="${SCRIPT_DIR}/config/mihomo-build-config.sh"
@@ -13,6 +15,10 @@ MIHOMO_SERVICE="mihomo"
 MIHOMO_DIR="/etc/mihomo"
 MIHOMO_PROTOCOL_DIR="${MIHOMO_DIR}/protocols"
 MIHOMO_CLIENT_DIR="${MIHOMO_DIR}/client"
+MIHOMO_HY2_HOP_SERVICE="mihomo-hysteria2-port-hopping.service"
+MIHOMO_HY2_HOP_START="20000"
+MIHOMO_HY2_HOP_END="50000"
+MIHOMO_HY2_HOP_STATE="${MIHOMO_DIR}/hysteria2-port-hopping.range"
 
 SELECTED_VERSION=""
 
@@ -109,6 +115,30 @@ show_client_info(){
     fi
 
     echo
+    section "Hysteria2" "$YELLOW"
+    echo
+    if [[ -f "${MIHOMO_CLIENT_DIR}/hysteria2.txt" ]]; then
+        while IFS= read -r line; do
+            if [[ "$line" == "Hysteria2 Link:" ]]; then
+                label " Hysteria2 Link"
+                echo
+                continue
+            fi
+            if [[ "$line" == "Mihomo / Clash:" ]]; then
+                echo
+                divider "$CYAN" "-"
+                echo
+                label " Mihomo / Clash YAML"
+                echo
+                continue
+            fi
+            value "$line"
+        done < "${MIHOMO_CLIENT_DIR}/hysteria2.txt"
+    else
+        warning "未配置"
+    fi
+
+    echo
     section "Shadowsocks" "$YELLOW"
     echo
     if [[ -f "${MIHOMO_CLIENT_DIR}/shadowsocks.txt" ]]; then
@@ -196,6 +226,10 @@ install_mihomo(){
     pause
 }
 
+configure_mihomo_hysteria2(){
+    run_script_and_pause "$MIHOMO_HY2_SCRIPT"
+}
+
 configure_mihomo_vless(){
     run_script_and_pause "$MIHOMO_VLESS_SCRIPT"
 }
@@ -214,6 +248,57 @@ configure_mihomo_trusttunnel(){
 
 manage_tls_certificate(){
     run_script_and_pause "$TLS_CERT_SCRIPT"
+}
+
+remove_mihomo_hysteria2_port_hopping(){
+    local listener_port="${1:-${MIHOMO_HY2_HOP_START}}"
+    local hop_start="${MIHOMO_HY2_HOP_START}"
+    local hop_end="${MIHOMO_HY2_HOP_END}"
+    local range=""
+    local service_values=""
+    local service_port=""
+
+    if [[ -r "${MIHOMO_HY2_HOP_STATE}" ]]; then
+        range=$(tr -d '\r\n' < "${MIHOMO_HY2_HOP_STATE}")
+        if [[ "${range}" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+            hop_start="${BASH_REMATCH[1]}"
+            hop_end="${BASH_REMATCH[2]}"
+        fi
+    elif [[ -r "/etc/systemd/system/${MIHOMO_HY2_HOP_SERVICE}" ]]; then
+        service_values=$(sed -nE 's#^ExecStart=.*/mihomo-hysteria2-port-hopping\.sh start ([0-9]+) ([0-9]+) ([0-9]+)$#\1 \2 \3#p' \
+            "/etc/systemd/system/${MIHOMO_HY2_HOP_SERVICE}" | head -n1)
+        if [[ -n "${service_values}" ]]; then
+            read -r hop_start hop_end service_port <<< "${service_values}"
+        fi
+    fi
+
+    systemctl disable --now "${MIHOMO_HY2_HOP_SERVICE}" >/dev/null 2>&1 || true
+    if [[ -r "${MIHOMO_HY2_HOP_SCRIPT}" ]]; then
+        bash "${MIHOMO_HY2_HOP_SCRIPT}" stop \
+            "${hop_start}" "${hop_end}" "${listener_port}" \
+            >/dev/null 2>&1 || true
+    fi
+    rm -f "/etc/systemd/system/${MIHOMO_HY2_HOP_SERVICE}" \
+        "/etc/systemd/system/mihomo.service.d/hysteria2-port-hopping.conf" \
+        "${MIHOMO_HY2_HOP_STATE}"
+    rmdir /etc/systemd/system/mihomo.service.d >/dev/null 2>&1 || true
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    remove_ufw_port_rule "${hop_start}:${hop_end}" udp
+    remove_ufw_port_rule "20000:50000" udp
+    remove_ufw_port_rule "${listener_port}" udp
+}
+
+uninstall_mihomo_hysteria2(){
+    local port
+
+    header "卸载 Mihomo Hysteria2"
+    warning "正在卸载 Mihomo Hysteria2..."
+    port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" "port")
+    remove_mihomo_hysteria2_port_hopping "${port:-${MIHOMO_HY2_HOP_START}}"
+    rm -f "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" "${MIHOMO_CLIENT_DIR}/hysteria2.txt"
+    rebuild_or_stop_mihomo
+    success "Mihomo Hysteria2 已卸载。"
+    pause
 }
 
 uninstall_mihomo_vless(){
@@ -343,6 +428,12 @@ show_mihomo_core(){
         kv "VLESS + TCP + XTLS Vision + REALITY    :" "未配置"
     fi
 
+    if [[ -f "${MIHOMO_CLIENT_DIR}/hysteria2.txt" ]]; then
+        kv "Hysteria2       :" "已配置（BBR，UDP 跳跃端口位于 20000-50000）"
+    else
+        kv "Hysteria2       :" "未配置"
+    fi
+
     if [[ -f "${MIHOMO_CLIENT_DIR}/shadowsocks.txt" ]]; then
         kv "Shadowsocks      :" "已配置（UDP 已开启）"
     else
@@ -409,7 +500,7 @@ restart_mihomo(){
 }
 
 uninstall_mihomo(){
-    local vless_port shadowsocks_port mieru_port mieru_transports
+    local hysteria2_port vless_port shadowsocks_port mieru_port mieru_transports
     local trusttunnel_port trusttunnel_has_tcp=false trusttunnel_has_udp=false
 
     header "卸载 Mihomo"
@@ -421,6 +512,7 @@ uninstall_mihomo(){
         return
     fi
 
+    hysteria2_port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" "port")
     vless_port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/vless.yaml" "port")
     shadowsocks_port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/shadowsocks.yaml" "port")
     mieru_port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/mieru.yaml" "port")
@@ -441,6 +533,7 @@ uninstall_mihomo(){
         trusttunnel_has_udp=true
     fi
 
+    remove_mihomo_hysteria2_port_hopping "${hysteria2_port:-${MIHOMO_HY2_HOP_START}}"
     systemctl disable --now "$MIHOMO_SERVICE" 2>/dev/null || true
     remove_ufw_port_rule "$vless_port" tcp
     remove_ufw_port_rule "$vless_port" udp
@@ -477,14 +570,16 @@ mihomo_menu(){
         menu_item "4" "TLS 证书申请与管理"
         menu_item "5" "安装 VLESS + TCP + XTLS Vision + REALITY"
         menu_item "6" "卸载 VLESS + TCP + XTLS Vision + REALITY"
-        menu_item "7" "安装 Shadowsocks"
-        menu_item "8" "卸载 Shadowsocks"
-        menu_item "9" "安装 Mieru"
-        menu_item "10" "卸载 Mieru"
-        menu_item "11" "安装 TrustTunnel"
-        menu_item "12" "卸载 TrustTunnel"
-        menu_item "13" "重启 Mihomo"
-        menu_item "14" "卸载 Mihomo"
+        menu_item "7" "安装 Hysteria2"
+        menu_item "8" "卸载 Hysteria2"
+        menu_item "9" "安装 Shadowsocks"
+        menu_item "10" "卸载 Shadowsocks"
+        menu_item "11" "安装 Mieru"
+        menu_item "12" "卸载 Mieru"
+        menu_item "13" "安装 TrustTunnel"
+        menu_item "14" "卸载 TrustTunnel"
+        menu_item "15" "重启 Mihomo"
+        menu_item "16" "卸载 Mihomo"
         echo
         menu_item "0" "返回主菜单"
         echo
@@ -499,14 +594,16 @@ mihomo_menu(){
             4) manage_tls_certificate ;;
             5) configure_mihomo_vless ;;
             6) uninstall_mihomo_vless ;;
-            7) configure_mihomo_shadowsocks ;;
-            8) uninstall_mihomo_shadowsocks ;;
-            9) configure_mihomo_mieru ;;
-            10) uninstall_mihomo_mieru ;;
-            11) configure_mihomo_trusttunnel ;;
-            12) uninstall_mihomo_trusttunnel ;;
-            13) restart_mihomo ;;
-            14) uninstall_mihomo ;;
+            7) configure_mihomo_hysteria2 ;;
+            8) uninstall_mihomo_hysteria2 ;;
+            9) configure_mihomo_shadowsocks ;;
+            10) uninstall_mihomo_shadowsocks ;;
+            11) configure_mihomo_mieru ;;
+            12) uninstall_mihomo_mieru ;;
+            13) configure_mihomo_trusttunnel ;;
+            14) uninstall_mihomo_trusttunnel ;;
+            15) restart_mihomo ;;
+            16) uninstall_mihomo ;;
             0) return ;;
             *) error "无效选择。"; pause ;;
         esac
