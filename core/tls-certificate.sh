@@ -162,8 +162,21 @@ validate_domain(){
     [[ "${labels[-1]}" =~ ^[a-z]{2,63}$ ]]
 }
 
+duplicated_domain_half(){
+    local domain="$1"
+    local length="${#1}"
+    local half_length
+    local first_half
+
+    (( length > 0 && length % 2 == 0 )) || return 1
+    half_length=$(( length / 2 ))
+    first_half="${domain:0:half_length}"
+    [[ "${first_half}${first_half}" == "$domain" ]] || return 1
+    printf '%s' "$first_half"
+}
+
 prompt_domain(){
-    local input
+    local input duplicate_half
 
     while true; do
         read -r -p "$(prompt_text "请输入证书完整域名（输入 0 取消）: ")" input
@@ -174,7 +187,18 @@ prompt_domain(){
         if cancel_input "$input"; then
             return "$INPUT_CANCEL_STATUS"
         fi
+        if duplicate_half=$(duplicated_domain_half "$input"); then
+            error "域名似乎被重复粘贴了两次，请重新输入。"
+            info "可能想输入的是：${duplicate_half}"
+            continue
+        fi
         if validate_domain "$input"; then
+            echo
+            kv "即将申请的域名 :" "$input"
+            if ! confirm_action "确认使用以上域名申请证书吗？"; then
+                warning "请重新输入证书域名。"
+                continue
+            fi
             DOMAIN="$input"
             return 0
         fi
@@ -598,6 +622,11 @@ verify_certificate(){
         error "private.key 不是有效的私钥。"; return 1;
     }
     certificate_key_match || { error "证书与私钥不匹配。"; return 1; }
+    if [[ -n "${DOMAIN:-}" ]] &&
+       ! openssl x509 -in "$CERT_FILE" -noout -checkhost "$DOMAIN" >/dev/null 2>&1; then
+        error "证书 SAN 不包含本次申请域名：${DOMAIN}"
+        return 1
+    fi
 
     subject=$(openssl x509 -in "$CERT_FILE" -noout -subject -nameopt RFC2253 | sed 's/^subject=//')
     sans=$(openssl x509 -in "$CERT_FILE" -noout -ext subjectAltName 2>/dev/null | \
@@ -659,27 +688,74 @@ archive_current_certificate(){
     install -m 600 "$KEY_FILE" "${ARCHIVE_DIR}/private.key"
     printf '%s\n' "$old_domain" > "${ARCHIVE_DIR}/domain"
     chmod 600 "${ARCHIVE_DIR}/domain"
-    info "旧部署证书已保留到：${ARCHIVE_DIR}"
+    info "旧部署证书已临时备份，仅用于本次换证失败回滚。"
 }
 
 restore_archived_certificate(){
     [[ -n "$ARCHIVE_DIR" && -r "${ARCHIVE_DIR}/fullchain.pem" && -r "${ARCHIVE_DIR}/private.key" ]] || return 0
     install -m 644 "${ARCHIVE_DIR}/fullchain.pem" "$CERT_FILE"
     install -m 600 "${ARCHIVE_DIR}/private.key" "$KEY_FILE"
+    if [[ -r "${ARCHIVE_DIR}/domain" ]]; then
+        install -m 600 "${ARCHIVE_DIR}/domain" "$DOMAIN_FILE"
+    fi
 }
 
-detach_old_deployment(){
+delete_archived_certificate(){
+    local archive_root="${CERT_DIR}/archive"
+    local deleted_dir="$ARCHIVE_DIR"
+
+    [[ -n "$deleted_dir" ]] || return 0
+    case "$deleted_dir" in
+        "${archive_root}/"*) ;;
+        *)
+            error "拒绝删除非证书归档目录：${deleted_dir}"
+            return 1
+            ;;
+    esac
+    [[ "$deleted_dir" != "$archive_root" && -d "$deleted_dir" ]] || return 0
+
+    rm -f -- "${deleted_dir}/fullchain.pem" \
+        "${deleted_dir}/private.key" \
+        "${deleted_dir}/domain"
+    if ! rmdir -- "$deleted_dir"; then
+        error "旧证书临时目录包含未知文件，已停止删除：${deleted_dir}"
+        return 1
+    fi
+    rmdir -- "$archive_root" >/dev/null 2>&1 || true
+    ARCHIVE_DIR=""
+    info "新证书验证成功，旧部署证书临时备份已删除。"
+}
+
+delete_old_acme_certificate(){
     local old_domain="$1"
-    local conf
+    local old_certificate_dir
 
     [[ -n "$old_domain" ]] || return 0
-    conf=$(domain_conf_path "$old_domain")
-    [[ -f "$conf" ]] || return 0
-    sed -i -e '/^Le_RealCertPath=/d' -e '/^Le_RealCACertPath=/d' \
-        -e '/^Le_RealKeyPath=/d' -e '/^Le_RealFullChainPath=/d' \
-        -e '/^Le_ReloadCmd=/d' "$conf"
-    chmod 600 "$conf"
-    info "旧域名证书仍保留并可在 acme.sh 内续期，但已解除固定 Mihomo 路径的部署绑定。"
+    validate_domain "$old_domain" || {
+        error "拒绝删除域名格式异常的 acme.sh 目录：${old_domain}"
+        return 1
+    }
+    old_certificate_dir="${ACME_HOME}/${old_domain}_ecc"
+    case "$old_certificate_dir" in
+        "${ACME_HOME}/"*"_ecc") ;;
+        *)
+            error "拒绝删除非 acme.sh 证书目录：${old_certificate_dir}"
+            return 1
+            ;;
+    esac
+    [[ "$old_certificate_dir" != "$ACME_HOME" ]] || return 1
+
+    if [[ -x "$ACME_SH" && -d "$old_certificate_dir" ]]; then
+        if ! "$ACME_SH" --remove --domain "$old_domain" --ecc >/dev/null 2>&1; then
+            warning "acme.sh 未能正常移除旧域名记录，将直接删除其证书目录。"
+        fi
+    fi
+    rm -rf -- "$old_certificate_dir"
+    if [[ -e "$old_certificate_dir" ]]; then
+        error "旧域名证书目录删除失败：${old_certificate_dir}"
+        return 1
+    fi
+    success "旧域名 ${old_domain} 的 acme.sh 续期记录和证书文件已删除。"
 }
 
 verify_cloudflare_for_domain(){
@@ -703,10 +779,15 @@ configure_new_certificate(){
         error "新证书部署失败；如有旧证书备份，固定路径已尝试恢复。"
         return 1
     fi
-    if [[ -n "$old_domain" && "$old_domain" != "$DOMAIN" ]]; then
-        detach_old_deployment "$old_domain"
+    if ! verify_certificate; then
+        restore_archived_certificate
+        error "新证书验证失败；如有旧证书备份，固定路径已尝试恢复。"
+        return 1
     fi
-    verify_certificate
+    if [[ -n "$old_domain" && "$old_domain" != "$DOMAIN" ]]; then
+        delete_old_acme_certificate "$old_domain"
+    fi
+    delete_archived_certificate
     show_cron_status
 }
 
