@@ -162,21 +162,8 @@ validate_domain(){
     [[ "${labels[-1]}" =~ ^[a-z]{2,63}$ ]]
 }
 
-duplicated_domain_half(){
-    local domain="$1"
-    local length="${#1}"
-    local half_length
-    local first_half
-
-    (( length > 0 && length % 2 == 0 )) || return 1
-    half_length=$(( length / 2 ))
-    first_half="${domain:0:half_length}"
-    [[ "${first_half}${first_half}" == "$domain" ]] || return 1
-    printf '%s' "$first_half"
-}
-
 prompt_domain(){
-    local input duplicate_half
+    local input
 
     while true; do
         read -r -p "$(prompt_text "请输入证书完整域名（输入 0 取消）: ")" input
@@ -186,11 +173,6 @@ prompt_domain(){
 
         if cancel_input "$input"; then
             return "$INPUT_CANCEL_STATUS"
-        fi
-        if duplicate_half=$(duplicated_domain_half "$input"); then
-            error "域名似乎被重复粘贴了两次，请重新输入。"
-            info "可能想输入的是：${duplicate_half}"
-            continue
         fi
         if validate_domain "$input"; then
             echo
