@@ -2,6 +2,7 @@
 # Sourced by netkit.sh; do not execute directly.
 
 IP_QUALITY_SCRIPT_URL="https://IP.Check.Place"
+TCP_QUALITY_RAW_BASE="https://raw.githubusercontent.com/ibsgss/TcpQuality/main"
 NEXTTRACE_INSTALLER_URL="https://nxtrace.org/nt"
 NEXTTRACE_BIN_PATH="/usr/local/bin/nexttrace"
 DEBIAN_REINSTALL_SCRIPT_URL="https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh"
@@ -46,6 +47,41 @@ run_ip_quality_test(){
         fi
     ); then
         error "IP 质量检测未完成。"
+        pause
+    fi
+}
+
+run_tcp_quality_test(){
+    local temp_dir=""
+    local status=0
+
+    header "TCP 质量检测"
+    ensure_apt_package curl
+
+    if ! (
+        temp_dir=$(mktemp -d) || exit 1
+        trap '[[ -n "$temp_dir" ]] && rm -rf -- "$temp_dir"' EXIT
+
+        curl -fsSL "${TCP_QUALITY_RAW_BASE}/runTcpQuality.sh" \
+            -o "${temp_dir}/runTcpQuality.sh" || exit 1
+        curl -fsSL "${TCP_QUALITY_RAW_BASE}/runTcpQuality-rootfs.sh" \
+            -o "${temp_dir}/runTcpQuality-rootfs.sh" || exit 1
+        curl -fsSL "${TCP_QUALITY_RAW_BASE}/runTcpQuality-core.sh" \
+            -o "${temp_dir}/runTcpQuality-core.sh" || exit 1
+        chmod 0755 "${temp_dir}"/runTcpQuality*.sh
+        cd "$temp_dir" || exit 1
+
+        bash ./runTcpQuality.sh || status=$?
+
+        echo
+        read -r -p "$(prompt_text "按 Enter 删除 TCP 质量检测脚本...")"
+        rm -rf -- "$temp_dir"
+        temp_dir=""
+        success "TCP 质量检测脚本已删除。"
+
+        exit "$status"
+    ); then
+        error "TCP 质量检测未完成。"
         pause
     fi
 }

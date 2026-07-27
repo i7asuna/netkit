@@ -5,7 +5,8 @@ vps_test_menu(){
     while true; do
         header "服务器测试"
         menu_item "1" "IP 质量检测"
-        menu_item "2" "NextTrace 大小包追踪"
+        menu_item "2" "TCP 质量检测"
+        menu_item "3" "NextTrace 大小包追踪"
         echo
         menu_item "0" "返回"
         echo
@@ -14,7 +15,8 @@ vps_test_menu(){
 
         case "$choice" in
             1) run_ip_quality_test ;;
-            2) nexttrace_packet_menu ;;
+            2) run_tcp_quality_test ;;
+            3) nexttrace_packet_menu ;;
             0) return ;;
             *) error "无效选择。"; pause ;;
         esac

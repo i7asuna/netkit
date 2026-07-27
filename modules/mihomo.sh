@@ -7,7 +7,6 @@ MIHOMO_SS_SCRIPT="${SCRIPT_DIR}/core/mihomo-shadowsocks.sh"
 MIHOMO_MIERU_SCRIPT="${SCRIPT_DIR}/core/mihomo-mieru.sh"
 MIHOMO_HY2_SCRIPT="${SCRIPT_DIR}/core/mihomo-hysteria2.sh"
 MIHOMO_HY2_HOP_SCRIPT="${SCRIPT_DIR}/core/mihomo-hysteria2-port-hopping.sh"
-MIHOMO_TRUSTTUNNEL_SCRIPT="${SCRIPT_DIR}/core/mihomo-trusttunnel.sh"
 TLS_CERT_SCRIPT="${SCRIPT_DIR}/core/tls-certificate.sh"
 MIHOMO_BUILD_CONFIG_SCRIPT="${SCRIPT_DIR}/config/mihomo-build-config.sh"
 
@@ -186,22 +185,6 @@ show_client_info(){
         warning "未配置"
     fi
 
-    echo
-    section "TrustTunnel" "$YELLOW"
-    echo
-    if [[ -f "${MIHOMO_CLIENT_DIR}/trusttunnel.txt" ]]; then
-        while IFS= read -r line; do
-            if [[ "$line" == "Mihomo / Clash:" ]]; then
-                label " Mihomo / Clash YAML"
-                echo
-                continue
-            fi
-            value "$line"
-        done < "${MIHOMO_CLIENT_DIR}/trusttunnel.txt"
-    else
-        warning "未配置"
-    fi
-
     pause
 }
 
@@ -240,10 +223,6 @@ configure_mihomo_shadowsocks(){
 
 configure_mihomo_mieru(){
     run_script_and_pause "$MIHOMO_MIERU_SCRIPT"
-}
-
-configure_mihomo_trusttunnel(){
-    run_script_and_pause "$MIHOMO_TRUSTTUNNEL_SCRIPT"
 }
 
 manage_tls_certificate(){
@@ -352,29 +331,6 @@ uninstall_mihomo_mieru(){
     pause
 }
 
-uninstall_mihomo_trusttunnel(){
-    local port has_tcp=false has_udp=false
-
-    header "卸载 Mihomo TrustTunnel"
-    warning "正在卸载 Mihomo TrustTunnel..."
-    port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/trusttunnel.yaml" "port")
-    if grep -Eq '^[[:space:]]*network:.*"tcp"' \
-        "${MIHOMO_PROTOCOL_DIR}/trusttunnel.yaml" 2>/dev/null; then
-        has_tcp=true
-    fi
-    if grep -Eq '^[[:space:]]*network:.*"udp"' \
-        "${MIHOMO_PROTOCOL_DIR}/trusttunnel.yaml" 2>/dev/null; then
-        has_udp=true
-    fi
-    rm -f "${MIHOMO_PROTOCOL_DIR}/trusttunnel.yaml" \
-        "${MIHOMO_CLIENT_DIR}/trusttunnel.txt"
-    rebuild_or_stop_mihomo
-    ${has_tcp} && remove_ufw_port_rule "$port" tcp
-    ${has_udp} && remove_ufw_port_rule "$port" udp
-    success "Mihomo TrustTunnel 已卸载。"
-    pause
-}
-
 show_mihomo_logs(){
     header "Mihomo 日志"
 
@@ -401,7 +357,7 @@ show_mihomo_logs(){
 show_mihomo_core(){
     header "Mihomo 核心"
 
-    local status mieru_transports trusttunnel_transports
+    local status mieru_transports
     status=$(systemctl is-active "$MIHOMO_SERVICE" 2>/dev/null || true)
     status=${status:-unknown}
 
@@ -455,21 +411,6 @@ show_mihomo_core(){
         kv "Mieru           :" "未配置"
     fi
 
-    if [[ -f "${MIHOMO_CLIENT_DIR}/trusttunnel.txt" ]]; then
-        trusttunnel_transports=""
-        if grep -Eq '^[[:space:]]*network:.*"tcp"' \
-            "${MIHOMO_PROTOCOL_DIR}/trusttunnel.yaml" 2>/dev/null; then
-            trusttunnel_transports="H2"
-        fi
-        if grep -Eq '^[[:space:]]*network:.*"udp"' \
-            "${MIHOMO_PROTOCOL_DIR}/trusttunnel.yaml" 2>/dev/null; then
-            trusttunnel_transports="${trusttunnel_transports:+${trusttunnel_transports} + }H3"
-        fi
-        kv "TrustTunnel     :" "已配置（${trusttunnel_transports:-未知}，TCP/UDP 业务已开启）"
-    else
-        kv "TrustTunnel     :" "未配置"
-    fi
-
     pause
 }
 
@@ -501,7 +442,6 @@ restart_mihomo(){
 
 uninstall_mihomo(){
     local hysteria2_port vless_port shadowsocks_port mieru_port mieru_transports
-    local trusttunnel_port trusttunnel_has_tcp=false trusttunnel_has_udp=false
 
     header "卸载 Mihomo"
     warning "即将卸载 Mihomo，并删除其配置和连接信息。"
@@ -523,15 +463,6 @@ uninstall_mihomo(){
         sort -u ||
         true
     )
-    trusttunnel_port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/trusttunnel.yaml" "port")
-    if grep -Eq '^[[:space:]]*network:.*"tcp"' \
-        "${MIHOMO_PROTOCOL_DIR}/trusttunnel.yaml" 2>/dev/null; then
-        trusttunnel_has_tcp=true
-    fi
-    if grep -Eq '^[[:space:]]*network:.*"udp"' \
-        "${MIHOMO_PROTOCOL_DIR}/trusttunnel.yaml" 2>/dev/null; then
-        trusttunnel_has_udp=true
-    fi
 
     remove_mihomo_hysteria2_port_hopping "${hysteria2_port:-${MIHOMO_HY2_HOP_START}}"
     systemctl disable --now "$MIHOMO_SERVICE" 2>/dev/null || true
@@ -545,8 +476,6 @@ uninstall_mihomo(){
     if grep -qx 'udp' <<< "$mieru_transports"; then
         remove_ufw_port_rule "$mieru_port" udp
     fi
-    ${trusttunnel_has_tcp} && remove_ufw_port_rule "$trusttunnel_port" tcp
-    ${trusttunnel_has_udp} && remove_ufw_port_rule "$trusttunnel_port" udp
 
     rm -f /usr/local/bin/mihomo /etc/systemd/system/mihomo.service
     rm -rf "$MIHOMO_DIR"
@@ -576,10 +505,8 @@ mihomo_menu(){
         menu_item "10" "卸载 Shadowsocks"
         menu_item "11" "安装 Mieru"
         menu_item "12" "卸载 Mieru"
-        menu_item "13" "安装 TrustTunnel"
-        menu_item "14" "卸载 TrustTunnel"
-        menu_item "15" "重启 Mihomo"
-        menu_item "16" "卸载 Mihomo"
+        menu_item "13" "重启 Mihomo"
+        menu_item "14" "卸载 Mihomo"
         echo
         menu_item "0" "返回主菜单"
         echo
@@ -600,10 +527,8 @@ mihomo_menu(){
             10) uninstall_mihomo_shadowsocks ;;
             11) configure_mihomo_mieru ;;
             12) uninstall_mihomo_mieru ;;
-            13) configure_mihomo_trusttunnel ;;
-            14) uninstall_mihomo_trusttunnel ;;
-            15) restart_mihomo ;;
-            16) uninstall_mihomo ;;
+            13) restart_mihomo ;;
+            14) uninstall_mihomo ;;
             0) return ;;
             *) error "无效选择。"; pause ;;
         esac
