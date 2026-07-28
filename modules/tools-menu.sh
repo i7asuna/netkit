@@ -45,10 +45,10 @@ system_reinstall_kernel_menu(){
 
 security_tools_menu(){
     while true; do
-        header "SSH 与安全防护"
-        menu_item "1" "SSH 端口与密钥管理"
-        menu_item "2" "UFW 防火墙管理"
-        menu_item "3" "Fail2Ban 管理"
+        header "安全防护"
+        menu_item "1" "UFW 防火墙管理"
+        menu_item "2" "Fail2Ban 管理"
+        menu_item "3" "SSH 端口与密钥管理"
         echo
         menu_item "0" "返回"
         echo
@@ -56,9 +56,9 @@ security_tools_menu(){
         choice=${choice:-0}
 
         case "$choice" in
-            1) ssh_menu ;;
-            2) ufw_menu ;;
-            3) fail2ban_menu ;;
+            1) ufw_menu ;;
+            2) fail2ban_menu ;;
+            3) ssh_menu ;;
             0) return ;;
             *) error "无效选择。"; pause ;;
         esac
@@ -112,11 +112,11 @@ network_tools_menu(){
 tools_menu(){
     while true; do
         header "工具箱"
-        menu_item "1" "服务器测试"
-        menu_item "2" "系统重装与内核"
-        menu_item "3" "SSH 与安全防护"
-        menu_item "4" "系统维护"
-        menu_item "5" "网络设置"
+        menu_item "1" "服务器测试（IP、TCP、路由追踪）"
+        menu_item "2" "系统重装与内核（DD 重装、XanMod）"
+        menu_item "3" "安全防护（UFW、Fail2Ban、SSH）"
+        menu_item "4" "系统维护（虚拟内存、时区、自动更新）"
+        menu_item "5" "网络设置（TCP、IPv6、MTU）"
         echo
         menu_item "0" "返回主菜单"
         echo
