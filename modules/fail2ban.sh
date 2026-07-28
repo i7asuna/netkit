@@ -29,9 +29,26 @@ EOF
     pause
 }
 
+require_fail2ban_client(){
+    if command -v fail2ban-client >/dev/null 2>&1; then
+        return 0
+    fi
+
+    error "Fail2Ban 尚未安装，请先选择安装 Fail2Ban。"
+    return 1
+}
+
 show_fail2ban_status(){
     header "SSHD 状态"
-    fail2ban-client status sshd
+
+    if ! require_fail2ban_client; then
+        pause
+        return
+    fi
+
+    if ! fail2ban-client status sshd; then
+        error "无法获取 sshd jail 状态，请确认 Fail2Ban 服务已启动且 sshd jail 已启用。"
+    fi
     pause
 }
 
@@ -50,6 +67,11 @@ fail2ban_unban_ip(){
     header "解封 SSHD IP"
     local ip
 
+    if ! require_fail2ban_client; then
+        pause
+        return
+    fi
+
     read -r -p "$(prompt_text "请输入要解封的 IP（输入 0 取消）: ")" ip
     cancel_input "$ip" && return
 
@@ -59,7 +81,12 @@ fail2ban_unban_ip(){
         return
     fi
 
-    fail2ban-client set sshd unbanip "$ip"
+    if ! fail2ban-client set sshd unbanip "$ip"; then
+        error "解封失败，请确认 Fail2Ban 服务已启动且 sshd jail 已启用。"
+        pause
+        return
+    fi
+
     success "已从 sshd jail 解封 IP: ${ip}"
     pause
 }
