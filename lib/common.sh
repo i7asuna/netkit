@@ -41,15 +41,40 @@ reject_comma_separator(){
     return 0
 }
 
+require_commands(){
+    local command_name
+    local -a missing_commands=()
+
+    for command_name in "$@"; do
+        if ! command -v "$command_name" >/dev/null 2>&1; then
+            missing_commands+=("$command_name")
+        fi
+    done
+
+    if (( ${#missing_commands[@]} == 0 )); then
+        return 0
+    fi
+
+    error "缺少必要命令：${missing_commands[*]}。"
+    return 1
+}
+
 ensure_apt_package(){
     local package="$1"
 
+    if ! require_commands dpkg apt; then
+        error "自动安装软件包仅支持带有 APT 的 Debian/Ubuntu 系统。"
+        return 1
+    fi
+
     if dpkg -s "$package" >/dev/null 2>&1; then
         success "${package} 已安装。"
-        return
+        return 0
     fi
 
     info "正在安装 ${package}..."
-    apt update
-    apt install -y "$package"
+    if ! apt update || ! apt install -y "$package"; then
+        error "${package} 安装失败。"
+        return 1
+    fi
 }

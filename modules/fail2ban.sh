@@ -3,7 +3,22 @@
 
 install_fail2ban(){
     header "安装 Fail2Ban"
-    ensure_apt_package "fail2ban"
+
+    if ! require_commands systemctl awk; then
+        pause
+        return
+    fi
+
+    if [[ ! -r /etc/ssh/sshd_config ]]; then
+        error "未找到 SSHD 配置：/etc/ssh/sshd_config。"
+        pause
+        return
+    fi
+
+    if ! ensure_apt_package "fail2ban"; then
+        pause
+        return
+    fi
 
     local ssh_port
     ssh_port=$(current_ssh_port)
@@ -23,8 +38,12 @@ maxretry = 3
 bantime = 604800
 EOF
 
-    systemctl enable fail2ban
-    systemctl restart fail2ban
+    if ! systemctl enable fail2ban || ! systemctl restart fail2ban; then
+        error "Fail2Ban 服务启动失败，请检查 systemctl status fail2ban。"
+        pause
+        return
+    fi
+
     success "Fail2Ban 已安装并启动。"
     pause
 }
@@ -55,10 +74,26 @@ show_fail2ban_status(){
 uninstall_fail2ban(){
     header "卸载 Fail2Ban"
     warning "正在卸载 Fail2Ban..."
-    systemctl stop fail2ban 2>/dev/null || true
-    systemctl disable fail2ban 2>/dev/null || true
-    apt purge -y fail2ban
-    apt autoremove -y
+
+    if ! require_commands apt; then
+        pause
+        return
+    fi
+
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop fail2ban 2>/dev/null || true
+        systemctl disable fail2ban 2>/dev/null || true
+    fi
+
+    if ! apt purge -y fail2ban; then
+        error "Fail2Ban 卸载失败。"
+        pause
+        return
+    fi
+    if ! apt autoremove -y; then
+        warning "Fail2Ban 已卸载，但自动清理无用依赖失败。"
+    fi
+
     success "Fail2Ban 已卸载。"
     pause
 }

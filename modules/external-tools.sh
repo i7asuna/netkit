@@ -13,7 +13,10 @@ run_ip_quality_test(){
     local report_generated=0
 
     header "IP 质量检测"
-    ensure_apt_package curl
+    if ! ensure_apt_package curl; then
+        pause
+        return
+    fi
 
     if ! (
         temp_dir=$(mktemp -d) || exit 1
@@ -56,7 +59,10 @@ run_tcp_quality_test(){
     local status=0
 
     header "TCP 质量检测"
-    ensure_apt_package curl
+    if ! ensure_apt_package curl; then
+        pause
+        return
+    fi
 
     if ! (
         temp_dir=$(mktemp -d) || exit 1
@@ -98,7 +104,10 @@ install_nexttrace(){
         return
     fi
 
-    ensure_apt_package curl
+    if ! ensure_apt_package curl; then
+        pause
+        return
+    fi
     info "正在安装 NextTrace..."
 
     if ! (
@@ -233,8 +242,14 @@ dd_debian(){
 
     header "DD 重装 Debian"
     warning "即将运行 Debian 重装脚本，后续操作由脚本自身处理。"
-    ensure_apt_package curl
-    ensure_apt_package wget
+    if ! ensure_apt_package curl; then
+        pause
+        return
+    fi
+    if ! ensure_apt_package wget; then
+        pause
+        return
+    fi
 
     if (
         temp_dir=$(mktemp -d) || exit 1

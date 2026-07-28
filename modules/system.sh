@@ -15,7 +15,18 @@ install_xanmod_kernel(){
 
 set_timezone(){
     header "时区调整"
-    timedatectl set-timezone "$TIMEZONE"
+
+    if ! require_commands timedatectl; then
+        pause
+        return
+    fi
+
+    if ! timedatectl set-timezone "$TIMEZONE"; then
+        error "时区调整失败，请确认系统使用 systemd。"
+        pause
+        return
+    fi
+
     success "时区已调整为 ${TIMEZONE}。"
     pause
 }
@@ -24,14 +35,23 @@ configure_auto_updates(){
     local current_kernel
     local xanmod_updates_status="未启用"
 
-    current_kernel=$(uname -r)
     header "自动更新与自动重启"
     warning "启用后将每天检查并安装更新；如系统要求重启，将在 03:30 自动重启。"
 
     info "正在配置系统自动更新..."
 
-    apt update
-    apt install -y unattended-upgrades apt-listchanges
+    if ! require_commands apt systemctl uname; then
+        pause
+        return
+    fi
+
+    current_kernel=$(uname -r)
+
+    if ! apt update || ! apt install -y unattended-upgrades apt-listchanges; then
+        error "自动更新所需软件包安装失败。"
+        pause
+        return
+    fi
 
     cat > /etc/apt/apt.conf.d/20auto-upgrades <<'EOF'
 APT::Periodic::Update-Package-Lists "1";
@@ -84,8 +104,12 @@ Persistent=true
 EOF
 
     dpkg-reconfigure -f noninteractive unattended-upgrades >/dev/null 2>&1 || true
-    systemctl daemon-reload
-    systemctl enable --now apt-daily.timer apt-daily-upgrade.timer
+    if ! systemctl daemon-reload || \
+       ! systemctl enable --now apt-daily.timer apt-daily-upgrade.timer; then
+        error "自动更新定时器启用失败。"
+        pause
+        return
+    fi
 
     success "自动更新已启用。"
     kv "更新软件列表:" "03:00"

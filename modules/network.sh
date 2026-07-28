@@ -32,6 +32,11 @@ system_tuning(){
     header "系统调优"
     info "正在应用系统调优（${congestion_control^^}）..."
 
+    if ! require_commands sysctl; then
+        pause
+        return
+    fi
+
     modprobe nf_conntrack 2>/dev/null || true
     modprobe "tcp_${congestion_control}" 2>/dev/null || true
     modprobe sch_fq 2>/dev/null || true
@@ -73,7 +78,12 @@ net.netfilter.nf_conntrack_tcp_timeout_established = 3600
 vm.swappiness = 10
 EOF
 
-    sysctl --system >/dev/null
+    if ! sysctl --system >/dev/null; then
+        error "系统调优参数应用失败。"
+        pause
+        return
+    fi
+
     success "系统调优已完成。"
 
     echo
@@ -250,6 +260,11 @@ END {
 }
 
 configure_mtu(){
+    if ! require_commands ip awk dpkg mktemp; then
+        pause
+        return
+    fi
+
     while true; do
         header "MTU 设置"
 
@@ -343,8 +358,19 @@ configure_mtu(){
 enable_ipv6(){
     header "开启 IPv6"
     info "正在开启 IPv6..."
-    sysctl -w net.ipv6.conf.all.disable_ipv6=0 >/dev/null
-    sysctl -w net.ipv6.conf.default.disable_ipv6=0 >/dev/null
+
+    if ! require_commands sysctl; then
+        pause
+        return
+    fi
+
+    if ! sysctl -w net.ipv6.conf.all.disable_ipv6=0 >/dev/null || \
+       ! sysctl -w net.ipv6.conf.default.disable_ipv6=0 >/dev/null; then
+        error "IPv6 开启失败。"
+        pause
+        return
+    fi
+
     rm -f "$IPV6_SYSCTL_CONFIG"
     success "IPv6 已开启。"
     pause
@@ -353,8 +379,18 @@ enable_ipv6(){
 disable_ipv6(){
     header "关闭 IPv6"
     warning "正在关闭 IPv6..."
-    sysctl -w net.ipv6.conf.all.disable_ipv6=1 >/dev/null
-    sysctl -w net.ipv6.conf.default.disable_ipv6=1 >/dev/null
+
+    if ! require_commands sysctl; then
+        pause
+        return
+    fi
+
+    if ! sysctl -w net.ipv6.conf.all.disable_ipv6=1 >/dev/null || \
+       ! sysctl -w net.ipv6.conf.default.disable_ipv6=1 >/dev/null; then
+        error "IPv6 关闭失败。"
+        pause
+        return
+    fi
 
     cat > "$IPV6_SYSCTL_CONFIG" <<EOF
 net.ipv6.conf.all.disable_ipv6 = 1

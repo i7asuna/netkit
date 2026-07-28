@@ -47,6 +47,10 @@ select_mihomo_version(){
 
     info "正在验证 Mihomo ${input}..."
 
+    if ! require_commands curl; then
+        return 1
+    fi
+
     if ! release_json=$(curl -fsSL -L \
         -H "Accept: application/vnd.github+json" \
         "https://api.github.com/repos/MetaCubeX/mihomo/releases/tags/${input}"); then
@@ -75,8 +79,18 @@ rebuild_or_stop_mihomo(){
     done
 
     if $found; then
-        bash "$MIHOMO_BUILD_CONFIG_SCRIPT"
-        systemctl restart "$MIHOMO_SERVICE"
+        if ! require_commands systemctl; then
+            return 1
+        fi
+
+        if ! bash "$MIHOMO_BUILD_CONFIG_SCRIPT"; then
+            error "Mihomo 配置重建失败。"
+            return 1
+        fi
+        if ! systemctl restart "$MIHOMO_SERVICE"; then
+            error "Mihomo 配置已重建，但服务重启失败。"
+            return 1
+        fi
         success "Mihomo 配置已重建并重启。"
     else
         rm -f "${MIHOMO_DIR}/config.yaml"
@@ -205,8 +219,7 @@ install_mihomo(){
         warning "正在安装 Mihomo 最新正式稳定版..."
     fi
 
-    run_script "$MIHOMO_INSTALL_SCRIPT" "$SELECTED_VERSION"
-    pause
+    run_script_and_pause "$MIHOMO_INSTALL_SCRIPT" "$SELECTED_VERSION"
 }
 
 configure_mihomo_hysteria2(){
@@ -275,7 +288,10 @@ uninstall_mihomo_hysteria2(){
     port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" "port")
     remove_mihomo_hysteria2_port_hopping "${port:-${MIHOMO_HY2_HOP_START}}"
     rm -f "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" "${MIHOMO_CLIENT_DIR}/hysteria2.txt"
-    rebuild_or_stop_mihomo
+    if ! rebuild_or_stop_mihomo; then
+        pause
+        return
+    fi
     success "Mihomo Hysteria2 已卸载。"
     pause
 }
@@ -287,7 +303,10 @@ uninstall_mihomo_vless(){
     warning "正在卸载 Mihomo VLESS + TCP + XTLS Vision + REALITY..."
     port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/vless.yaml" "port")
     rm -f "${MIHOMO_PROTOCOL_DIR}/vless.yaml" "${MIHOMO_CLIENT_DIR}/vless.txt"
-    rebuild_or_stop_mihomo
+    if ! rebuild_or_stop_mihomo; then
+        pause
+        return
+    fi
     remove_ufw_port_rule "$port" tcp
     remove_ufw_port_rule "$port" udp
     pause
@@ -300,7 +319,10 @@ uninstall_mihomo_shadowsocks(){
     warning "正在卸载 Mihomo Shadowsocks..."
     port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/shadowsocks.yaml" "port")
     rm -f "${MIHOMO_PROTOCOL_DIR}/shadowsocks.yaml" "${MIHOMO_CLIENT_DIR}/shadowsocks.txt"
-    rebuild_or_stop_mihomo
+    if ! rebuild_or_stop_mihomo; then
+        pause
+        return
+    fi
     remove_ufw_port_rule "$port" tcp
     remove_ufw_port_rule "$port" udp
     pause
@@ -320,7 +342,10 @@ uninstall_mihomo_mieru(){
         true
     )
     rm -f "${MIHOMO_PROTOCOL_DIR}/mieru.yaml" "${MIHOMO_CLIENT_DIR}/mieru.txt"
-    rebuild_or_stop_mihomo
+    if ! rebuild_or_stop_mihomo; then
+        pause
+        return
+    fi
     if grep -qx 'tcp' <<< "$transports"; then
         remove_ufw_port_rule "$port" tcp
     fi
@@ -423,6 +448,11 @@ restart_mihomo(){
         return
     fi
 
+    if ! require_commands systemctl; then
+        pause
+        return
+    fi
+
     info "正在重启 Mihomo..."
     if ! systemctl restart "$MIHOMO_SERVICE"; then
         error "Mihomo 重启失败。"
@@ -465,7 +495,9 @@ uninstall_mihomo(){
     )
 
     remove_mihomo_hysteria2_port_hopping "${hysteria2_port:-${MIHOMO_HY2_HOP_START}}"
-    systemctl disable --now "$MIHOMO_SERVICE" 2>/dev/null || true
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl disable --now "$MIHOMO_SERVICE" 2>/dev/null || true
+    fi
     remove_ufw_port_rule "$vless_port" tcp
     remove_ufw_port_rule "$vless_port" udp
     remove_ufw_port_rule "$shadowsocks_port" tcp
@@ -479,7 +511,9 @@ uninstall_mihomo(){
 
     rm -f /usr/local/bin/mihomo /etc/systemd/system/mihomo.service
     rm -rf "$MIHOMO_DIR"
-    systemctl daemon-reload
+    if command -v systemctl >/dev/null 2>&1 && ! systemctl daemon-reload; then
+        warning "Mihomo 已删除，但 systemd 配置重载失败。"
+    fi
 
     if command -v mihomo >/dev/null 2>&1; then
         warning "Mihomo 程序仍然存在，请检查是否由其他方式安装。"

@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 # Sourced by netkit.sh; do not execute directly.
 
+require_sshd_environment(){
+    if ! require_commands awk sed systemctl; then
+        return 1
+    fi
+
+    if [[ ! -r /etc/ssh/sshd_config ]]; then
+        error "未找到 SSHD 配置：/etc/ssh/sshd_config。"
+        return 1
+    fi
+
+    return 0
+}
+
 current_ssh_port(){
     awk '
         /^[[:space:]]*Port[[:space:]]+[0-9]+/ {
@@ -17,10 +30,13 @@ current_ssh_port(){
 
 restart_ssh_service(){
     if systemctl list-unit-files ssh.service >/dev/null 2>&1; then
-        systemctl restart ssh
-    else
-        systemctl restart sshd
+        systemctl restart ssh && return 0
     fi
+    if systemctl list-unit-files sshd.service >/dev/null 2>&1; then
+        systemctl restart sshd && return 0
+    fi
+
+    return 1
 }
 
 set_sshd_options(){
@@ -28,11 +44,13 @@ set_sshd_options(){
     local key
 
     for key in "$@"; do
-        sed -i "/^[#[:space:]]*${key%%=*}[[:space:]]/d" /etc/ssh/sshd_config
+        if ! sed -i "/^[#[:space:]]*${key%%=*}[[:space:]]/d" /etc/ssh/sshd_config; then
+            return 1
+        fi
         new_config+="${key%%=*} ${key#*=}"$'\n'
     done
 
-    awk -v CONFIG="$new_config" '
+    if ! awk -v CONFIG="$new_config" '
 /^[[:space:]]*Match/ && !DONE {
     printf "%s", CONFIG
     DONE=1
@@ -44,13 +62,24 @@ END {
     if (!DONE)
         printf "%s", CONFIG
 }
-' /etc/ssh/sshd_config > /etc/ssh/sshd_config.tmp
+' /etc/ssh/sshd_config > /etc/ssh/sshd_config.tmp; then
+        rm -f /etc/ssh/sshd_config.tmp
+        return 1
+    fi
 
-    mv /etc/ssh/sshd_config.tmp /etc/ssh/sshd_config
+    if ! mv /etc/ssh/sshd_config.tmp /etc/ssh/sshd_config; then
+        rm -f /etc/ssh/sshd_config.tmp
+        return 1
+    fi
 }
 
 show_ssh_status(){
     header "SSH 状态"
+
+    if ! require_sshd_environment; then
+        pause
+        return
+    fi
 
     local ssh_port
     local password_auth
@@ -83,6 +112,12 @@ show_ssh_status(){
 
 set_ssh_port(){
     header "设置 SSH 端口"
+
+    if ! require_sshd_environment || ! require_commands ss; then
+        pause
+        return
+    fi
+
     read -r -p "$(prompt_text "请输入新的 SSH 端口（输入 0 取消）: ")" ssh_port
     cancel_input "$ssh_port" && return
 
@@ -103,10 +138,18 @@ set_ssh_port(){
     fi
 
     info "正在设置 SSH 端口..."
-    set_sshd_options "Port=${ssh_port}"
+    if ! set_sshd_options "Port=${ssh_port}"; then
+        error "SSHD 配置写入失败。"
+        pause
+        return
+    fi
 
     if command -v ufw >/dev/null 2>&1; then
-        ufw allow "${ssh_port}/tcp" comment "SSH" >/dev/null
+        if ! ufw allow "${ssh_port}/tcp" comment "SSH" >/dev/null; then
+            error "SSH 新端口的 UFW 规则添加失败，SSH 服务未重启。"
+            pause
+            return
+        fi
         if [[ "$ssh_port" != "$old_ssh_port" ]]; then
             ufw delete allow "${old_ssh_port}/tcp" >/dev/null 2>&1 || true
             if [[ "$old_ssh_port" == "22" ]]; then
@@ -115,13 +158,24 @@ set_ssh_port(){
         fi
     fi
 
-    restart_ssh_service
+    if ! restart_ssh_service; then
+        error "SSH 服务重启失败，请检查 SSHD 配置和服务状态。"
+        pause
+        return
+    fi
+
     success "SSH 端口已设置为 ${ssh_port}，防火墙规则已更新。"
     pause
 }
 
 set_ssh_key(){
     header "设置 SSH 密钥"
+
+    if ! require_sshd_environment; then
+        pause
+        return
+    fi
+
     read -r -p "$(prompt_text "请输入 SSH 公钥（输入 0 取消）: ")" public_key
     cancel_input "$public_key" && return
 
@@ -136,12 +190,21 @@ set_ssh_key(){
     echo "$public_key" > /root/.ssh/authorized_keys
     chmod 600 /root/.ssh/authorized_keys
 
-    set_sshd_options \
+    if ! set_sshd_options \
         "PasswordAuthentication=no" \
         "PubkeyAuthentication=yes" \
-        "PermitRootLogin=prohibit-password"
+        "PermitRootLogin=prohibit-password"; then
+        error "SSHD 配置写入失败。"
+        pause
+        return
+    fi
 
-    restart_ssh_service
+    if ! restart_ssh_service; then
+        error "SSH 服务重启失败，请检查 SSHD 配置和服务状态。"
+        pause
+        return
+    fi
+
     success "SSH 密钥已设置，密码登录已关闭。"
     pause
 }

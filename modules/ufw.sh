@@ -3,16 +3,46 @@
 
 install_ufw(){
     header "安装 UFW"
-    ensure_apt_package "ufw"
-    ufw --force enable >/dev/null
+
+    if ! ensure_apt_package "ufw"; then
+        pause
+        return
+    fi
+
+    if ! command -v ufw >/dev/null 2>&1; then
+        error "UFW 安装完成，但未找到 ufw 命令。"
+        pause
+        return
+    fi
+
+    if ! ufw --force enable >/dev/null; then
+        error "UFW 启用失败。"
+        pause
+        return
+    fi
+
     success "UFW 已安装并启用。"
     pause
+}
+
+require_ufw(){
+    if command -v ufw >/dev/null 2>&1; then
+        return 0
+    fi
+
+    error "UFW 尚未安装，请先选择安装 UFW。"
+    return 1
 }
 
 ufw_batch_add_port(){
     header "允许端口"
     local input
     local port
+
+    if ! require_ufw; then
+        pause
+        return
+    fi
 
     read -r -p "$(prompt_text "请输入要允许的端口（多个用空格分隔，输入 0 取消）: ")" input
     cancel_input "$input" && return
@@ -24,9 +54,11 @@ ufw_batch_add_port(){
     done
 
     for port in $(split_items "$input"); do
-        ufw allow "${port}/tcp"
-        ufw allow "${port}/udp"
-        success "已允许端口: ${port}/tcp 和 ${port}/udp"
+        if ufw allow "${port}/tcp" && ufw allow "${port}/udp"; then
+            success "已允许端口: ${port}/tcp 和 ${port}/udp"
+        else
+            error "端口 ${port} 的 UFW 规则添加失败。"
+        fi
     done
 
     pause
@@ -56,8 +88,7 @@ ufw_batch_delete_port(){
     local -A selected_indexes=()
     local -A selected_ports=()
 
-    if ! command -v ufw >/dev/null 2>&1; then
-        warning "UFW 未安装。"
+    if ! require_ufw; then
         pause
         return
     fi
@@ -150,7 +181,11 @@ ufw_batch_delete_port(){
     )
 
     for rule_number in "${delete_rule_numbers[@]}"; do
-        ufw --force delete "$rule_number" >/dev/null
+        if ! ufw --force delete "$rule_number" >/dev/null; then
+            error "UFW 规则 ${rule_number} 删除失败。"
+            pause
+            return
+        fi
     done
 
     for display_index in $(printf '%s\n' "${!selected_indexes[@]}" | sort -n); do
@@ -166,6 +201,11 @@ ufw_batch_add_ip(){
     local input
     local ip
 
+    if ! require_ufw; then
+        pause
+        return
+    fi
+
     read -r -p "$(prompt_text "请输入要允许的 IP/CIDR（多个用空格分隔，输入 0 取消）: ")" input
     cancel_input "$input" && return
     [[ -z "$input" ]] && error "IP 不能为空。" && pause && return
@@ -176,8 +216,11 @@ ufw_batch_add_ip(){
     done
 
     for ip in $(split_items "$input"); do
-        ufw allow from "$ip"
-        success "已允许 IP/CIDR: ${ip}"
+        if ufw allow from "$ip"; then
+            success "已允许 IP/CIDR: ${ip}"
+        else
+            error "IP/CIDR ${ip} 的 UFW 规则添加失败。"
+        fi
     done
 
     pause
@@ -187,6 +230,11 @@ ufw_batch_delete_ip(){
     header "删除 IP"
     local input
     local ip
+
+    if ! require_ufw; then
+        pause
+        return
+    fi
 
     read -r -p "$(prompt_text "请输入要删除的 IP/CIDR（多个用空格分隔，输入 0 取消）: ")" input
     cancel_input "$input" && return
@@ -198,8 +246,11 @@ ufw_batch_delete_ip(){
     done
 
     for ip in $(split_items "$input"); do
-        ufw --force delete allow from "$ip" || true
-        success "已删除 IP/CIDR 规则: ${ip}"
+        if ufw --force delete allow from "$ip"; then
+            success "已删除 IP/CIDR 规则: ${ip}"
+        else
+            error "IP/CIDR ${ip} 的 UFW 规则删除失败。"
+        fi
     done
 
     pause
@@ -208,22 +259,39 @@ ufw_batch_delete_ip(){
 show_ufw_status(){
     header "UFW 状态"
 
-    if ! command -v ufw >/dev/null 2>&1; then
-        warning "UFW 未安装。"
+    if ! require_ufw; then
         pause
         return
     fi
 
-    ufw status verbose
+    if ! ufw status verbose; then
+        error "无法读取 UFW 状态。"
+    fi
     pause
 }
 
 uninstall_ufw(){
     header "卸载 UFW"
     warning "正在卸载 UFW..."
-    ufw --force disable >/dev/null 2>&1 || true
-    apt purge -y ufw
-    apt autoremove -y
+
+    if ! require_commands apt; then
+        pause
+        return
+    fi
+
+    if command -v ufw >/dev/null 2>&1; then
+        ufw --force disable >/dev/null 2>&1 || true
+    fi
+
+    if ! apt purge -y ufw; then
+        error "UFW 卸载失败。"
+        pause
+        return
+    fi
+    if ! apt autoremove -y; then
+        warning "UFW 已卸载，但自动清理无用依赖失败。"
+    fi
+
     success "UFW 已卸载。"
     pause
 }
