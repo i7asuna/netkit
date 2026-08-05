@@ -104,7 +104,7 @@ cancel_input "$PORT" && exit "$INPUT_CANCEL_STATUS"
 PORT=$(resolve_port "$PORT" 50001 65535) || exit 1
 
 while true; do
-    read -r -p "$(prompt_text "Reality SNI（默认 icloud.com，输入 0 取消）: ")" SNI_INPUT
+    read -r -p "$(prompt_text "Reality SNI（默认 aws.amazon.com，输入 0 取消）: ")" SNI_INPUT
     cancel_input "$SNI_INPUT" && exit "$INPUT_CANCEL_STATUS"
 
     if ! SNI=$(normalize_reality_sni "$SNI_INPUT"); then

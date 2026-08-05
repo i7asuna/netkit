@@ -187,7 +187,7 @@ yaml_quote(){
 }
 
 normalize_reality_sni(){
-    local host="${1:-icloud.com}"
+    local host="${1:-aws.amazon.com}"
 
     host="${host#https://}"
     host="${host#http://}"
