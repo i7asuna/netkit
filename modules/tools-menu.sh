@@ -5,7 +5,7 @@ NETKIT_REPO_URL="https://github.com/i7asuna/netkit.git"
 NETKIT_UPDATE_BRANCH="main"
 
 update_netkit(){
-    local target_commit
+    local current_short target_commit target_short
 
     header "更新工具箱"
 
@@ -39,13 +39,16 @@ update_netkit(){
         return
     fi
 
+    current_short=$(git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || echo "未知")
     target_commit=$(git -C "$SCRIPT_DIR" rev-parse "origin/${NETKIT_UPDATE_BRANCH}" 2>/dev/null || true)
+    target_short=$(git -C "$SCRIPT_DIR" rev-parse --short "origin/${NETKIT_UPDATE_BRANCH}" 2>/dev/null || echo "未知")
     if [[ -z "$target_commit" ]]; then
         error "无法读取 GitHub 最新版本。"
         pause
         return
     fi
 
+    info "正在更新 NetKit：${current_short} -> ${target_short}"
     if ! git -C "$SCRIPT_DIR" reset --hard "origin/${NETKIT_UPDATE_BRANCH}" >/dev/null 2>&1; then
         error "工具箱更新失败。"
         pause
