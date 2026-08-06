@@ -17,6 +17,7 @@ MIHOMO_HY2_HOP_SERVICE="mihomo-hysteria2-port-hopping.service"
 MIHOMO_HY2_HOP_START="20000"
 MIHOMO_HY2_HOP_END="50000"
 MIHOMO_HY2_HOP_STATE="${MIHOMO_DIR}/hysteria2-port-hopping.range"
+MIHOMO_HY2_SELF_SIGNED_DIR="${MIHOMO_DIR}/certs/hysteria2-selfsigned"
 
 SELECTED_VERSION=""
 
@@ -251,18 +252,46 @@ remove_mihomo_hysteria2_port_hopping(){
     remove_ufw_port_rule "${listener_port}" udp
 }
 
+remove_mihomo_hysteria2_certificate(){
+    local certificate_path="$1"
+
+    if [[ "${certificate_path}" == "${MIHOMO_DIR}/certs/fullchain.pem" ]]; then
+        info "Let's Encrypt 证书由 TLS 证书管理维护，本次不删除。"
+        info "如需彻底删除，请使用“TLS 证书申请与管理”中的卸载功能。"
+    fi
+
+    if [[ -d "${MIHOMO_HY2_SELF_SIGNED_DIR}" ]]; then
+        case "${MIHOMO_HY2_SELF_SIGNED_DIR}" in
+            "${MIHOMO_DIR}/certs/hysteria2-selfsigned") ;;
+            *)
+                error "拒绝删除异常的 HY2 自签证书目录：${MIHOMO_HY2_SELF_SIGNED_DIR}"
+                return 1
+                ;;
+        esac
+        rm -rf -- "${MIHOMO_HY2_SELF_SIGNED_DIR}"
+        rmdir "${MIHOMO_DIR}/certs" >/dev/null 2>&1 || true
+        success "HY2 自签证书、私钥和域名记录已删除；下次安装会生成新的指纹。"
+    fi
+}
+
 uninstall_mihomo_hysteria2(){
     local port
+    local certificate_path=""
 
     header "卸载 Mihomo Hysteria2"
     warning "正在卸载 Mihomo Hysteria2..."
     port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" "port")
+    if [[ -r "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" ]]; then
+        certificate_path=$(sed -nE 's#^[[:space:]]*certificate:[[:space:]]*"([^"]+)"[[:space:]]*$#\1#p' \
+            "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" | head -n1)
+    fi
     remove_mihomo_hysteria2_port_hopping "${port:-${MIHOMO_HY2_HOP_START}}"
     rm -f "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" "${MIHOMO_CLIENT_DIR}/hysteria2.txt"
     if ! rebuild_or_stop_mihomo; then
         pause
         return
     fi
+    remove_mihomo_hysteria2_certificate "${certificate_path}"
     success "Mihomo Hysteria2 已卸载。"
     pause
 }

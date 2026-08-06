@@ -23,6 +23,7 @@ CERT_DIR="/etc/mihomo/certs"
 CERT_FILE="${CERT_DIR}/fullchain.pem"
 KEY_FILE="${CERT_DIR}/private.key"
 DOMAIN_FILE="${CERT_DIR}/domain"
+HY2_PROTOCOL_CONFIG="/etc/mihomo/protocols/hysteria2.yaml"
 RELOAD_CMD='if systemctl is-active --quiet mihomo 2>/dev/null; then systemctl restart mihomo; else echo "警告：Mihomo 服务不存在或未运行，证书已部署，暂不重启。"; fi'
 
 DOMAIN=""
@@ -810,6 +811,95 @@ force_reissue(){
     show_cron_status
 }
 
+prepare_certificate_environment(){
+    install_dependencies
+    install_acme
+}
+
+letsencrypt_certificate_in_use(){
+    [[ -r "$HY2_PROTOCOL_CONFIG" ]] && grep -Fq "$CERT_FILE" "$HY2_PROTOCOL_CONFIG"
+}
+
+remove_acme_cron_entries(){
+    local current_cron=""
+    local filtered_cron=""
+
+    command -v crontab >/dev/null 2>&1 || return 0
+    current_cron=$(crontab -l 2>/dev/null || true)
+    [[ -n "$current_cron" ]] || return 0
+
+    filtered_cron=$(printf '%s\n' "$current_cron" | \
+        grep -vF "$ACME_SH" | grep -vE 'acme\.sh.*--cron' || true)
+    if [[ "$filtered_cron" == "$current_cron" ]]; then
+        return 0
+    fi
+
+    if [[ -n "$filtered_cron" ]]; then
+        printf '%s\n' "$filtered_cron" | crontab -
+    else
+        crontab -r >/dev/null 2>&1 || true
+    fi
+}
+
+uninstall_tls_certificate(){
+    local domain=""
+    local archive_dir="${CERT_DIR}/archive"
+
+    domain=$(current_certificate_domain)
+
+    header "完全卸载 TLS 证书"
+    if letsencrypt_certificate_in_use; then
+        error "Hysteria2 当前仍在使用该 Let's Encrypt 证书，已停止卸载。"
+        warning "请先卸载 Hysteria2，或重新安装 HY2 并切换到自签证书。"
+        return 1
+    fi
+
+    warning "此操作将永久删除以下内容："
+    value "Let's Encrypt 已部署证书、私钥和域名记录"
+    value "acme.sh 的全部证书、账户配置和 Cloudflare 凭据"
+    value "acme.sh 自动续期 cron 任务与程序目录"
+    warning "HY2 专用自签证书不属于此菜单，不会在这里删除。"
+    if ! confirm_action "确认完全卸载 TLS 证书与 acme.sh 吗？"; then
+        warning "已取消卸载。"
+        return 1
+    fi
+
+    if [[ -x "$ACME_SH" && -n "$domain" ]]; then
+        if ! "$ACME_SH" --remove --domain "$domain" --ecc >/dev/null 2>&1; then
+            warning "acme.sh 未能正常移除域名续期记录，将继续执行彻底清理。"
+        fi
+    fi
+    if [[ -x "$ACME_SH" ]]; then
+        if ! "$ACME_SH" --uninstall >/dev/null 2>&1; then
+            warning "acme.sh 自带卸载命令执行失败，将继续清理固定目录和 cron。"
+        fi
+    fi
+
+    remove_acme_cron_entries
+    rm -f -- "$CERT_FILE" "$KEY_FILE" "$DOMAIN_FILE"
+
+    if [[ -d "$archive_dir" ]]; then
+        case "$archive_dir" in
+            "${CERT_DIR}/archive") rm -rf -- "$archive_dir" ;;
+            *)
+                error "拒绝删除异常的证书归档目录：${archive_dir}"
+                return 1
+                ;;
+        esac
+    fi
+
+    case "$ACME_HOME" in
+        /root/.acme.sh) rm -rf -- "$ACME_HOME" ;;
+        *)
+            error "拒绝删除异常的 acme.sh 目录：${ACME_HOME}"
+            return 1
+            ;;
+    esac
+
+    rmdir "$CERT_DIR" >/dev/null 2>&1 || true
+    success "Let's Encrypt 证书、私钥、acme.sh、续期任务和凭据已完全卸载。"
+}
+
 existing_certificate_menu(){
     local domain
     local choice
@@ -824,6 +914,7 @@ existing_certificate_menu(){
         menu_item "3" "强制重新申请 / 测试完整续期流程"
         menu_item "4" "更换域名"
         menu_item "5" "查看详细证书与自动续期状态"
+        menu_item "6" "完全卸载证书与 acme.sh"
         echo
         menu_item "0" "退出"
         echo
@@ -832,6 +923,7 @@ existing_certificate_menu(){
 
         case "$choice" in
             1)
+                prepare_certificate_environment
                 if [[ -z "$domain" ]]; then
                     error "无法确定当前证书域名，不能从 acme.sh 重新部署。"
                 else
@@ -841,14 +933,17 @@ existing_certificate_menu(){
                 pause
                 ;;
             2)
+                prepare_certificate_environment
                 if [[ -z "$domain" ]]; then error "无法确定当前证书域名。"; else normal_renewal_check "$domain"; fi
                 pause
                 ;;
             3)
+                prepare_certificate_environment
                 if [[ -z "$domain" ]]; then error "无法确定当前证书域名。"; else force_reissue "$domain"; fi
                 pause
                 ;;
             4)
+                prepare_certificate_environment
                 configure_new_certificate "$domain"
                 certificate_exists && domain=$(current_certificate_domain)
                 pause
@@ -856,6 +951,13 @@ existing_certificate_menu(){
             5)
                 verify_certificate || true
                 show_cron_status
+                pause
+                ;;
+            6)
+                if uninstall_tls_certificate; then
+                    pause
+                    return 0
+                fi
                 pause
                 ;;
             0) return 0 ;;
@@ -887,13 +989,12 @@ main(){
         return 0
     fi
 
-    install_dependencies
-    install_acme
     CF_RESPONSE_FILE=$(mktemp /tmp/netkit-cf-response.XXXXXX)
 
-    if certificate_exists; then
+    if certificate_exists || [[ -e "$CERT_FILE" || -e "$KEY_FILE" || -e "$DOMAIN_FILE" || -d "$ACME_HOME" ]]; then
         existing_certificate_menu
     else
+        prepare_certificate_environment
         header "申请 TLS 证书"
         configure_new_certificate
     fi

@@ -19,9 +19,18 @@ HOP_SERVICE_FILE="/etc/systemd/system/${HOP_SERVICE}"
 HOP_DROPIN_DIR="/etc/systemd/system/mihomo.service.d"
 HOP_DROPIN_FILE="${HOP_DROPIN_DIR}/hysteria2-port-hopping.conf"
 HOP_STATE_FILE="${MIHOMO_DIR}/hysteria2-port-hopping.range"
-CERT_FILE="${MIHOMO_DIR}/certs/fullchain.pem"
-KEY_FILE="${MIHOMO_DIR}/certs/private.key"
-DOMAIN_FILE="${MIHOMO_DIR}/certs/domain"
+CERT_DIR="${MIHOMO_DIR}/certs"
+LE_CERT_FILE="${CERT_DIR}/fullchain.pem"
+LE_KEY_FILE="${CERT_DIR}/private.key"
+LE_DOMAIN_FILE="${CERT_DIR}/domain"
+SELF_SIGNED_DIR="${CERT_DIR}/hysteria2-selfsigned"
+SELF_SIGNED_CERT_FILE="${SELF_SIGNED_DIR}/server.crt"
+SELF_SIGNED_KEY_FILE="${SELF_SIGNED_DIR}/private.key"
+SELF_SIGNED_DOMAIN_FILE="${SELF_SIGNED_DIR}/domain"
+SELF_SIGNED_DAYS="3650"
+CERT_FILE=""
+KEY_FILE=""
+DOMAIN_FILE=""
 USERNAME="netkit"
 DEFAULT_MASQUERADE_URL="https://www.bing.com"
 HOP_MIN="20000"
@@ -37,6 +46,8 @@ MASQUERADE_URL=""
 OBFS_PASSWORD=""
 DOMAIN=""
 SERVER_IP=""
+CERT_MODE="letsencrypt"
+CERT_FINGERPRINT=""
 OLD_PORT=""
 OLD_HOP_START=""
 OLD_HOP_END=""
@@ -93,12 +104,32 @@ check_mihomo() {
     fi
 }
 
+certificate_material_valid() {
+    local cert_file="$1"
+    local key_file="$2"
+    local domain="$3"
+    local cert_public_key=""
+    local key_public_key=""
+
+    [[ -r "${cert_file}" && -r "${key_file}" && -n "${domain}" ]] || return 1
+    openssl x509 -in "${cert_file}" -noout >/dev/null 2>&1 || return 1
+    openssl pkey -in "${key_file}" -noout >/dev/null 2>&1 || return 1
+    openssl x509 -in "${cert_file}" -noout -checkend 0 >/dev/null 2>&1 || return 1
+    openssl x509 -in "${cert_file}" -noout -checkhost "${domain}" >/dev/null 2>&1 || return 1
+
+    cert_public_key="$(openssl x509 -in "${cert_file}" -pubkey -noout 2>/dev/null | openssl pkey -pubin -outform DER 2>/dev/null | sha256sum | awk '{print $1}')"
+    key_public_key="$(openssl pkey -in "${key_file}" -pubout -outform DER 2>/dev/null | sha256sum | awk '{print $1}')"
+    [[ -n "${cert_public_key}" && "${cert_public_key}" == "${key_public_key}" ]]
+}
+
 check_certificate() {
     info "检查 Hysteria2 TLS 证书..."
 
     if [[ ! -r "${CERT_FILE}" || ! -r "${KEY_FILE}" || ! -r "${DOMAIN_FILE}" ]]; then
         err "未找到可用的 TLS 证书"
-        echo "请先在 Mihomo 菜单中运行“TLS 证书申请与管理”"
+        if [[ "${CERT_MODE}" == "letsencrypt" ]]; then
+            echo "请先在 Mihomo 菜单中运行“TLS 证书申请与管理”"
+        fi
         echo "证书路径：${CERT_FILE}"
         echo "私钥路径：${KEY_FILE}"
         exit 1
@@ -121,7 +152,7 @@ check_certificate() {
     fi
 
     if ! openssl x509 -in "${CERT_FILE}" -noout -checkend 0 >/dev/null 2>&1; then
-        err "TLS 证书已经过期，请先续期证书"
+        err "TLS 证书已经过期，请先续期或重新生成证书"
         exit 1
     fi
 
@@ -139,6 +170,161 @@ check_certificate() {
     fi
 
     ok "TLS 证书有效：${DOMAIN}"
+}
+
+normalize_hy2_domain() {
+    local host="$1"
+
+    host="${host#https://}"
+    host="${host#http://}"
+    host="${host%%/*}"
+    host="${host%.}"
+
+    if [[ -z "${host}" || "${host}" == *:* ]]; then
+        return 1
+    fi
+    if [[ ! "${host}" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])$ ]]; then
+        return 1
+    fi
+
+    printf '%s' "${host,,}"
+}
+
+load_certificate_fingerprint() {
+    CERT_FINGERPRINT="$(openssl x509 -in "${CERT_FILE}" -noout -fingerprint -sha256 2>/dev/null | sed 's/^[^=]*=//')"
+    if [[ ! "${CERT_FINGERPRINT}" =~ ^([0-9A-Fa-f]{2}:){31}[0-9A-Fa-f]{2}$ ]]; then
+        err "无法计算自签证书 SHA-256 指纹"
+        exit 1
+    fi
+}
+
+generate_self_signed_certificate() {
+    local temp_dir=""
+    local temp_cert=""
+    local temp_key=""
+    local temp_domain=""
+
+    install -d -m 700 "${SELF_SIGNED_DIR}"
+    temp_dir="$(mktemp -d "${SELF_SIGNED_DIR}/.generate.XXXXXX")"
+    temp_cert="${temp_dir}/server.crt"
+    temp_key="${temp_dir}/private.key"
+    temp_domain="${temp_dir}/domain"
+
+    info "正在生成 EC P-256 自签证书（有效期 ${SELF_SIGNED_DAYS} 天）..."
+    if ! openssl req -x509 -newkey ec \
+        -pkeyopt ec_paramgen_curve:prime256v1 \
+        -nodes -sha256 -days "${SELF_SIGNED_DAYS}" \
+        -keyout "${temp_key}" \
+        -out "${temp_cert}" \
+        -subj "/CN=${DOMAIN}" \
+        -addext "subjectAltName=DNS:${DOMAIN}" >/dev/null 2>&1; then
+        rm -f "${temp_cert}" "${temp_key}" "${temp_domain}"
+        rmdir "${temp_dir}" >/dev/null 2>&1 || true
+        err "自签证书生成失败"
+        exit 1
+    fi
+    printf '%s\n' "${DOMAIN}" > "${temp_domain}"
+
+    if ! certificate_material_valid "${temp_cert}" "${temp_key}" "${DOMAIN}"; then
+        rm -f "${temp_cert}" "${temp_key}" "${temp_domain}"
+        rmdir "${temp_dir}" >/dev/null 2>&1 || true
+        err "生成的自签证书验证失败"
+        exit 1
+    fi
+
+    install -m 644 "${temp_cert}" "${SELF_SIGNED_CERT_FILE}.new"
+    install -m 600 "${temp_key}" "${SELF_SIGNED_KEY_FILE}.new"
+    install -m 600 "${temp_domain}" "${SELF_SIGNED_DOMAIN_FILE}.new"
+    mv -f "${SELF_SIGNED_CERT_FILE}.new" "${SELF_SIGNED_CERT_FILE}"
+    mv -f "${SELF_SIGNED_KEY_FILE}.new" "${SELF_SIGNED_KEY_FILE}"
+    mv -f "${SELF_SIGNED_DOMAIN_FILE}.new" "${SELF_SIGNED_DOMAIN_FILE}"
+    rm -f "${temp_cert}" "${temp_key}" "${temp_domain}"
+    rmdir "${temp_dir}" >/dev/null 2>&1 || true
+}
+
+prepare_self_signed_certificate() {
+    local input=""
+    local normalized=""
+    local saved_domain=""
+    local has_existing=0
+
+    while true; do
+        read -r -p "请输入自签证书域名 / SNI（无需 DNS 解析，输入 0 取消）：" input
+        if [[ "${input}" == "0" ]]; then
+            err "操作已取消"
+            exit 1
+        fi
+        if normalized="$(normalize_hy2_domain "${input}")"; then
+            DOMAIN="${normalized}"
+            break
+        fi
+        warn "域名格式无效，请只填写域名，不要填写端口或路径"
+    done
+
+    CERT_FILE="${SELF_SIGNED_CERT_FILE}"
+    KEY_FILE="${SELF_SIGNED_KEY_FILE}"
+    DOMAIN_FILE="${SELF_SIGNED_DOMAIN_FILE}"
+
+    if [[ -e "${CERT_FILE}" || -e "${KEY_FILE}" || -e "${DOMAIN_FILE}" ]]; then
+        has_existing=1
+    fi
+    if [[ -r "${DOMAIN_FILE}" ]]; then
+        saved_domain="$(tr -d '\r\n' < "${DOMAIN_FILE}")"
+    fi
+
+    if [[ "${saved_domain}" == "${DOMAIN}" ]] && certificate_material_valid "${CERT_FILE}" "${KEY_FILE}" "${DOMAIN}"; then
+        ok "复用现有自签证书：${DOMAIN}"
+    else
+        if (( has_existing == 1 )); then
+            warn "现有自签证书不可复用；重新生成后 SHA-256 指纹会变化，客户端必须同步更新"
+            if ! prompt_yes_no "是否重新生成自签证书？"; then
+                err "操作已取消"
+                exit 1
+            fi
+        fi
+        generate_self_signed_certificate
+        ok "自签证书生成成功：${DOMAIN}"
+    fi
+
+    check_certificate
+    load_certificate_fingerprint
+}
+
+prompt_certificate_mode() {
+    local choice=""
+
+    while true; do
+        echo
+        echo "Hysteria2 TLS 证书："
+        echo "1. Let's Encrypt 证书（默认，需要域名解析）"
+        echo "2. 自签证书 + pinSHA256（手动输入 SNI，无需域名解析）"
+        echo
+        read -r -p "请选择 [1-2]（默认 1，输入 0 取消）：" choice
+        choice="${choice:-1}"
+
+        case "${choice}" in
+            0)
+                err "操作已取消"
+                exit 1
+                ;;
+            1)
+                CERT_MODE="letsencrypt"
+                CERT_FILE="${LE_CERT_FILE}"
+                KEY_FILE="${LE_KEY_FILE}"
+                DOMAIN_FILE="${LE_DOMAIN_FILE}"
+                check_certificate
+                return 0
+                ;;
+            2)
+                CERT_MODE="selfsigned"
+                prepare_self_signed_certificate
+                return 0
+                ;;
+            *)
+                warn "输入无效，请重新选择"
+                ;;
+        esac
+    done
 }
 
 get_server_ip() {
@@ -493,15 +679,28 @@ write_hop_state() {
 }
 
 write_client_info() {
-    local yaml_domain yaml_password yaml_obfs_password hy2_query hy2_link
+    local client_server="${DOMAIN}"
+    local link_host=""
+    local yaml_server yaml_domain yaml_password yaml_obfs_password yaml_fingerprint hy2_query hy2_link
+
+    if [[ "${CERT_MODE}" == "selfsigned" ]]; then
+        client_server="${SERVER_IP}"
+    fi
+    link_host="$(uri_host "${client_server}")"
+    yaml_server="$(yaml_quote "${client_server}")"
     yaml_domain="$(yaml_quote "${DOMAIN}")"
     yaml_password="$(yaml_quote "${PASSWORD}")"
     yaml_obfs_password="$(yaml_quote "${OBFS_PASSWORD}")"
-    hy2_query="sni=${DOMAIN}&insecure=0"
+    yaml_fingerprint="$(yaml_quote "${CERT_FINGERPRINT}")"
+    if [[ "${CERT_MODE}" == "selfsigned" ]]; then
+        hy2_query="sni=${DOMAIN}&insecure=1&pinSHA256=${CERT_FINGERPRINT}"
+    else
+        hy2_query="sni=${DOMAIN}&insecure=0"
+    fi
     if [[ "${HY2_MODE}" == "salamander" ]]; then
         hy2_query+="&obfs=salamander&obfs-password=${OBFS_PASSWORD}"
     fi
-    hy2_link="hysteria2://${PASSWORD}@${DOMAIN}:${HOP_START}-${HOP_END}/?${hy2_query}"
+    hy2_link="hysteria2://${PASSWORD}@${link_host}:${HOP_START}-${HOP_END}/?${hy2_query}"
 
     umask 077
     {
@@ -511,7 +710,7 @@ write_client_info() {
         echo "Mihomo / Clash:"
         echo "- name: Mihomo Hysteria2"
         echo "  type: hysteria2"
-        echo "  server: ${yaml_domain}"
+        echo "  server: ${yaml_server}"
         echo "  port: ${PORT}"
         echo "  ports: \"${HOP_START}-${HOP_END}\""
         echo "  hop-interval: ${HOP_INTERVAL}"
@@ -521,7 +720,12 @@ write_client_info() {
             echo "  obfs: salamander"
             echo "  obfs-password: ${yaml_obfs_password}"
         fi
-        echo "  skip-cert-verify: false"
+        if [[ "${CERT_MODE}" == "selfsigned" ]]; then
+            echo "  skip-cert-verify: true"
+            echo "  fingerprint: ${yaml_fingerprint}"
+        else
+            echo "  skip-cert-verify: false"
+        fi
         echo "  alpn:"
         echo "    - h3"
     } > "${CLIENT_FILE}"
@@ -542,6 +746,12 @@ show_result() {
     banner "Mihomo Hysteria2 安装成功" "$GREEN"
     kv "Server IP    :" "${SERVER_IP}"
     kv "Domain       :" "${DOMAIN}"
+    if [[ "${CERT_MODE}" == "selfsigned" ]]; then
+        kv "Certificate  :" "自签证书 + SHA-256 指纹固定"
+        kv "Fingerprint  :" "${CERT_FINGERPRINT}"
+    else
+        kv "Certificate  :" "Let's Encrypt"
+    fi
     kv "Hop Ports    :" "${HOP_START}-${HOP_END}/UDP"
     kv "Listen Port  :" "${PORT}/UDP"
     kv "Hop Interval :" "${HOP_INTERVAL} 秒"
@@ -584,9 +794,13 @@ main() {
     banner "安装 Mihomo Hysteria2"
     install_dependencies
     check_mihomo
-    check_certificate
     get_server_ip
-    show_dns_warning
+    prompt_certificate_mode
+    if [[ "${CERT_MODE}" == "letsencrypt" ]]; then
+        show_dns_warning
+    else
+        info "自签模式使用 VPS IP 连接；SNI ${DOMAIN} 无需配置 A/AAAA 记录"
+    fi
     read_old_port
     prompt_hop_range
     prompt_hy2_mode
