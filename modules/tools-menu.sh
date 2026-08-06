@@ -5,9 +5,7 @@ NETKIT_REPO_URL="https://github.com/i7asuna/netkit.git"
 NETKIT_UPDATE_BRANCH="main"
 
 update_netkit(){
-    local current_commit target_commit dirty_state
-    local current_short target_short
-    local needs_confirmation=false
+    local target_commit
 
     header "更新工具箱"
 
@@ -23,11 +21,6 @@ update_netkit(){
         return
     fi
 
-    current_commit=$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || true)
-    current_short=$(git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || echo "未知")
-    dirty_state=$(git -C "$SCRIPT_DIR" status --porcelain 2>/dev/null || true)
-
-    info "正在检查 GitHub 更新..."
     if git -C "$SCRIPT_DIR" remote get-url origin >/dev/null 2>&1; then
         if ! git -C "$SCRIPT_DIR" remote set-url origin "$NETKIT_REPO_URL"; then
             error "GitHub 远程地址设置失败。"
@@ -40,43 +33,20 @@ update_netkit(){
         return
     fi
 
-    if ! git -C "$SCRIPT_DIR" fetch --prune origin; then
+    if ! git -C "$SCRIPT_DIR" fetch --prune origin >/dev/null 2>&1; then
         error "更新检查失败，请检查 VPS 网络或 GitHub 连通性。"
         pause
         return
     fi
 
     target_commit=$(git -C "$SCRIPT_DIR" rev-parse "origin/${NETKIT_UPDATE_BRANCH}" 2>/dev/null || true)
-    target_short=$(git -C "$SCRIPT_DIR" rev-parse --short "origin/${NETKIT_UPDATE_BRANCH}" 2>/dev/null || echo "未知")
     if [[ -z "$target_commit" ]]; then
         error "无法读取 GitHub 最新版本。"
         pause
         return
     fi
 
-    if [[ "$current_commit" == "$target_commit" && -z "$dirty_state" ]]; then
-        success "当前已是最新版本：$current_short"
-        pause
-        return
-    fi
-
-    if [[ -n "$dirty_state" ]]; then
-        warning "检测到本地文件修改，继续更新将覆盖已跟踪文件的本地修改。"
-        needs_confirmation=true
-    fi
-    if [[ -n "$current_commit" ]] && \
-       ! git -C "$SCRIPT_DIR" merge-base --is-ancestor "$current_commit" "$target_commit"; then
-        warning "本地提交与 GitHub 版本不一致，继续更新将以 GitHub main 为准。"
-        needs_confirmation=true
-    fi
-    if $needs_confirmation && ! confirm_action "确认覆盖并更新吗？"; then
-        warning "已取消更新。"
-        pause
-        return
-    fi
-
-    info "正在更新 NetKit：$current_short -> $target_short"
-    if ! git -C "$SCRIPT_DIR" reset --hard "origin/${NETKIT_UPDATE_BRANCH}"; then
+    if ! git -C "$SCRIPT_DIR" reset --hard "origin/${NETKIT_UPDATE_BRANCH}" >/dev/null 2>&1; then
         error "工具箱更新失败。"
         pause
         return
@@ -88,8 +58,7 @@ update_netkit(){
     chmod +x "$SCRIPT_DIR"/config/*.sh 2>/dev/null || true
     chmod +x "$SCRIPT_DIR"/lib/*.sh 2>/dev/null || true
 
-    success "NetKit 已更新到 $target_short。"
-    info "正在重新启动工具箱..."
+    success "工具箱更新成功。"
     sleep 1
     if ! exec bash "${SCRIPT_DIR}/netkit.sh"; then
         error "工具箱重新启动失败，请手动执行 asuna。"

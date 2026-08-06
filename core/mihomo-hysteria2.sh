@@ -20,17 +20,14 @@ HOP_DROPIN_DIR="/etc/systemd/system/mihomo.service.d"
 HOP_DROPIN_FILE="${HOP_DROPIN_DIR}/hysteria2-port-hopping.conf"
 HOP_STATE_FILE="${MIHOMO_DIR}/hysteria2-port-hopping.range"
 CERT_DIR="${MIHOMO_DIR}/certs"
-LE_CERT_FILE="${CERT_DIR}/fullchain.pem"
-LE_KEY_FILE="${CERT_DIR}/private.key"
-LE_DOMAIN_FILE="${CERT_DIR}/domain"
 SELF_SIGNED_DIR="${CERT_DIR}/hysteria2-selfsigned"
 SELF_SIGNED_CERT_FILE="${SELF_SIGNED_DIR}/server.crt"
 SELF_SIGNED_KEY_FILE="${SELF_SIGNED_DIR}/private.key"
 SELF_SIGNED_DOMAIN_FILE="${SELF_SIGNED_DIR}/domain"
 SELF_SIGNED_DAYS="3650"
-CERT_FILE=""
-KEY_FILE=""
-DOMAIN_FILE=""
+CERT_FILE="${SELF_SIGNED_CERT_FILE}"
+KEY_FILE="${SELF_SIGNED_KEY_FILE}"
+DOMAIN_FILE="${SELF_SIGNED_DOMAIN_FILE}"
 USERNAME="netkit"
 DEFAULT_MASQUERADE_URL="https://www.bing.com"
 HOP_MIN="20000"
@@ -46,7 +43,6 @@ MASQUERADE_URL=""
 OBFS_PASSWORD=""
 DOMAIN=""
 SERVER_IP=""
-CERT_MODE="letsencrypt"
 CERT_FINGERPRINT=""
 OLD_PORT=""
 OLD_HOP_START=""
@@ -127,9 +123,7 @@ check_certificate() {
 
     if [[ ! -r "${CERT_FILE}" || ! -r "${KEY_FILE}" || ! -r "${DOMAIN_FILE}" ]]; then
         err "未找到可用的 TLS 证书"
-        if [[ "${CERT_MODE}" == "letsencrypt" ]]; then
-            echo "请先在 Mihomo 菜单中运行“TLS 证书申请与管理”"
-        fi
+
         echo "证书路径：${CERT_FILE}"
         echo "私钥路径：${KEY_FILE}"
         exit 1
@@ -261,9 +255,6 @@ prepare_self_signed_certificate() {
         warn "域名格式无效，请只填写域名，不要填写端口或路径"
     done
 
-    CERT_FILE="${SELF_SIGNED_CERT_FILE}"
-    KEY_FILE="${SELF_SIGNED_KEY_FILE}"
-    DOMAIN_FILE="${SELF_SIGNED_DOMAIN_FILE}"
 
     if [[ -e "${CERT_FILE}" || -e "${KEY_FILE}" || -e "${DOMAIN_FILE}" ]]; then
         has_existing=1
@@ -290,59 +281,12 @@ prepare_self_signed_certificate() {
     load_certificate_fingerprint
 }
 
-prompt_certificate_mode() {
-    local choice=""
-
-    while true; do
-        echo
-        echo "Hysteria2 TLS 证书："
-        echo "1. Let's Encrypt 证书（默认，需要域名解析）"
-        echo "2. 自签证书 + pinSHA256（手动输入 SNI，无需域名解析）"
-        echo
-        read -r -p "请选择 [1-2]（默认 1，输入 0 取消）：" choice
-        choice="${choice:-1}"
-
-        case "${choice}" in
-            0)
-                err "操作已取消"
-                exit 1
-                ;;
-            1)
-                CERT_MODE="letsencrypt"
-                CERT_FILE="${LE_CERT_FILE}"
-                KEY_FILE="${LE_KEY_FILE}"
-                DOMAIN_FILE="${LE_DOMAIN_FILE}"
-                check_certificate
-                return 0
-                ;;
-            2)
-                CERT_MODE="selfsigned"
-                prepare_self_signed_certificate
-                return 0
-                ;;
-            *)
-                warn "输入无效，请重新选择"
-                ;;
-        esac
-    done
-}
-
 get_server_ip() {
     SERVER_IP="$(curl -4fsS --max-time 10 https://api.ipify.org 2>/dev/null || true)"
     if [[ -z "${SERVER_IP}" ]]; then
         SERVER_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "src") {print $(i+1); exit}}')"
     fi
     [[ -n "${SERVER_IP}" ]] || SERVER_IP="未知"
-}
-
-show_dns_warning() {
-    local resolved_ip=""
-    resolved_ip="$(getent ahosts "${DOMAIN}" 2>/dev/null | awk 'NR == 1 {print $1}' || true)"
-    if [[ -z "${resolved_ip}" ]]; then
-        warn "域名 ${DOMAIN} 当前未解析；客户端连接前请配置正确的 A 或 AAAA 记录"
-    else
-        info "域名当前解析到：${resolved_ip}"
-    fi
 }
 
 prompt_hop_range() {
@@ -679,24 +623,16 @@ write_hop_state() {
 }
 
 write_client_info() {
-    local client_server="${DOMAIN}"
     local link_host=""
     local yaml_server yaml_domain yaml_password yaml_obfs_password yaml_fingerprint hy2_query hy2_link
 
-    if [[ "${CERT_MODE}" == "selfsigned" ]]; then
-        client_server="${SERVER_IP}"
-    fi
-    link_host="$(uri_host "${client_server}")"
-    yaml_server="$(yaml_quote "${client_server}")"
+    link_host="$(uri_host "${SERVER_IP}")"
+    yaml_server="$(yaml_quote "${SERVER_IP}")"
     yaml_domain="$(yaml_quote "${DOMAIN}")"
     yaml_password="$(yaml_quote "${PASSWORD}")"
     yaml_obfs_password="$(yaml_quote "${OBFS_PASSWORD}")"
     yaml_fingerprint="$(yaml_quote "${CERT_FINGERPRINT}")"
-    if [[ "${CERT_MODE}" == "selfsigned" ]]; then
-        hy2_query="sni=${DOMAIN}&insecure=1&pinSHA256=${CERT_FINGERPRINT}"
-    else
-        hy2_query="sni=${DOMAIN}&insecure=0"
-    fi
+    hy2_query="sni=${DOMAIN}&insecure=1&pinSHA256=${CERT_FINGERPRINT}"
     if [[ "${HY2_MODE}" == "salamander" ]]; then
         hy2_query+="&obfs=salamander&obfs-password=${OBFS_PASSWORD}"
     fi
@@ -720,12 +656,8 @@ write_client_info() {
             echo "  obfs: salamander"
             echo "  obfs-password: ${yaml_obfs_password}"
         fi
-        if [[ "${CERT_MODE}" == "selfsigned" ]]; then
-            echo "  skip-cert-verify: true"
-            echo "  fingerprint: ${yaml_fingerprint}"
-        else
-            echo "  skip-cert-verify: false"
-        fi
+        echo "  skip-cert-verify: true"
+        echo "  fingerprint: ${yaml_fingerprint}"
         echo "  alpn:"
         echo "    - h3"
     } > "${CLIENT_FILE}"
@@ -746,12 +678,8 @@ show_result() {
     banner "Mihomo Hysteria2 安装成功" "$GREEN"
     kv "Server IP    :" "${SERVER_IP}"
     kv "Domain       :" "${DOMAIN}"
-    if [[ "${CERT_MODE}" == "selfsigned" ]]; then
-        kv "Certificate  :" "自签证书 + SHA-256 指纹固定"
-        kv "Fingerprint  :" "${CERT_FINGERPRINT}"
-    else
-        kv "Certificate  :" "Let's Encrypt"
-    fi
+    kv "Certificate  :" "自签证书 + SHA-256 指纹固定"
+    kv "Fingerprint  :" "${CERT_FINGERPRINT}"
     kv "Hop Ports    :" "${HOP_START}-${HOP_END}/UDP"
     kv "Listen Port  :" "${PORT}/UDP"
     kv "Hop Interval :" "${HOP_INTERVAL} 秒"
@@ -795,12 +723,8 @@ main() {
     install_dependencies
     check_mihomo
     get_server_ip
-    prompt_certificate_mode
-    if [[ "${CERT_MODE}" == "letsencrypt" ]]; then
-        show_dns_warning
-    else
-        info "自签模式使用 VPS IP 连接；SNI ${DOMAIN} 无需配置 A/AAAA 记录"
-    fi
+    prepare_self_signed_certificate
+    info "自签模式使用 VPS IP 连接；SNI ${DOMAIN} 无需配置 A/AAAA 记录"
     read_old_port
     prompt_hop_range
     prompt_hy2_mode

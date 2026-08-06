@@ -6,7 +6,6 @@ MIHOMO_VLESS_SCRIPT="${SCRIPT_DIR}/core/mihomo-vless-reality.sh"
 MIHOMO_SS_SCRIPT="${SCRIPT_DIR}/core/mihomo-shadowsocks.sh"
 MIHOMO_HY2_SCRIPT="${SCRIPT_DIR}/core/mihomo-hysteria2.sh"
 MIHOMO_HY2_HOP_SCRIPT="${SCRIPT_DIR}/core/mihomo-hysteria2-port-hopping.sh"
-TLS_CERT_SCRIPT="${SCRIPT_DIR}/core/tls-certificate.sh"
 MIHOMO_BUILD_CONFIG_SCRIPT="${SCRIPT_DIR}/config/mihomo-build-config.sh"
 
 MIHOMO_SERVICE="mihomo"
@@ -210,10 +209,6 @@ configure_mihomo_shadowsocks(){
     run_script_and_pause "$MIHOMO_SS_SCRIPT"
 }
 
-manage_tls_certificate(){
-    run_script_and_pause "$TLS_CERT_SCRIPT"
-}
-
 remove_mihomo_hysteria2_port_hopping(){
     local listener_port="${1:-${MIHOMO_HY2_HOP_START}}"
     local hop_start="${MIHOMO_HY2_HOP_START}"
@@ -253,13 +248,6 @@ remove_mihomo_hysteria2_port_hopping(){
 }
 
 remove_mihomo_hysteria2_certificate(){
-    local certificate_path="$1"
-
-    if [[ "${certificate_path}" == "${MIHOMO_DIR}/certs/fullchain.pem" ]]; then
-        info "Let's Encrypt 证书由 TLS 证书管理维护，本次不删除。"
-        info "如需彻底删除，请使用“TLS 证书申请与管理”中的卸载功能。"
-    fi
-
     if [[ -d "${MIHOMO_HY2_SELF_SIGNED_DIR}" ]]; then
         case "${MIHOMO_HY2_SELF_SIGNED_DIR}" in
             "${MIHOMO_DIR}/certs/hysteria2-selfsigned") ;;
@@ -276,22 +264,17 @@ remove_mihomo_hysteria2_certificate(){
 
 uninstall_mihomo_hysteria2(){
     local port
-    local certificate_path=""
 
     header "卸载 Mihomo Hysteria2"
     warning "正在卸载 Mihomo Hysteria2..."
     port=$(yaml_number_field "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" "port")
-    if [[ -r "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" ]]; then
-        certificate_path=$(sed -nE 's#^[[:space:]]*certificate:[[:space:]]*"([^"]+)"[[:space:]]*$#\1#p' \
-            "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" | head -n1)
-    fi
     remove_mihomo_hysteria2_port_hopping "${port:-${MIHOMO_HY2_HOP_START}}"
     rm -f "${MIHOMO_PROTOCOL_DIR}/hysteria2.yaml" "${MIHOMO_CLIENT_DIR}/hysteria2.txt"
     if ! rebuild_or_stop_mihomo; then
         pause
         return
     fi
-    remove_mihomo_hysteria2_certificate "${certificate_path}"
+    remove_mihomo_hysteria2_certificate
     success "Mihomo Hysteria2 已卸载。"
     pause
 }
@@ -471,15 +454,14 @@ mihomo_menu(){
         menu_item "1" "安装 / 更新 Mihomo"
         menu_item "2" "查看 Mihomo 核心"
         menu_item "3" "查看 Mihomo 日志"
-        menu_item "4" "TLS 证书申请与管理"
-        menu_item "5" "安装 VLESS + TCP + XTLS Vision + REALITY"
-        menu_item "6" "卸载 VLESS + TCP + XTLS Vision + REALITY"
-        menu_item "7" "安装 Hysteria2"
-        menu_item "8" "卸载 Hysteria2"
-        menu_item "9" "安装 Shadowsocks"
-        menu_item "10" "卸载 Shadowsocks"
-        menu_item "11" "重启 Mihomo"
-        menu_item "12" "卸载 Mihomo"
+        menu_item "4" "安装 VLESS + TCP + XTLS Vision + REALITY"
+        menu_item "5" "卸载 VLESS + TCP + XTLS Vision + REALITY"
+        menu_item "6" "安装 Hysteria2"
+        menu_item "7" "卸载 Hysteria2"
+        menu_item "8" "安装 Shadowsocks"
+        menu_item "9" "卸载 Shadowsocks"
+        menu_item "10" "重启 Mihomo"
+        menu_item "11" "卸载 Mihomo"
         echo
         menu_item "0" "返回主菜单"
         echo
@@ -491,15 +473,14 @@ mihomo_menu(){
             1) install_mihomo ;;
             2) show_mihomo_core ;;
             3) show_mihomo_logs ;;
-            4) manage_tls_certificate ;;
-            5) configure_mihomo_vless ;;
-            6) uninstall_mihomo_vless ;;
-            7) configure_mihomo_hysteria2 ;;
-            8) uninstall_mihomo_hysteria2 ;;
-            9) configure_mihomo_shadowsocks ;;
-            10) uninstall_mihomo_shadowsocks ;;
-            11) restart_mihomo ;;
-            12) uninstall_mihomo ;;
+            4) configure_mihomo_vless ;;
+            5) uninstall_mihomo_vless ;;
+            6) configure_mihomo_hysteria2 ;;
+            7) uninstall_mihomo_hysteria2 ;;
+            8) configure_mihomo_shadowsocks ;;
+            9) uninstall_mihomo_shadowsocks ;;
+            10) restart_mihomo ;;
+            11) uninstall_mihomo ;;
             0) return ;;
             *) error "无效选择。"; pause ;;
         esac
