@@ -29,7 +29,9 @@ CERT_FILE="${SELF_SIGNED_CERT_FILE}"
 KEY_FILE="${SELF_SIGNED_KEY_FILE}"
 DOMAIN_FILE="${SELF_SIGNED_DOMAIN_FILE}"
 USERNAME="netkit"
-DEFAULT_MASQUERADE_URL="https://www.bing.com"
+MASQUERADE_DIR="${MIHOMO_DIR}/masquerade"
+MASQUERADE_INDEX="${MASQUERADE_DIR}/index.html"
+MASQUERADE_URI="file://${MASQUERADE_DIR}"
 HOP_MIN="20000"
 HOP_MAX="50000"
 HOP_START="${HOP_MIN}"
@@ -346,31 +348,18 @@ prompt_yes_no() {
 }
 
 prompt_hy2_mode() {
-    local target=""
-
     echo
     echo "Hysteria2 流量模式："
     echo "1. 标准 HTTP/3，返回 404（默认）"
-    echo "2. HTTP/3 网站伪装（默认目标 ${DEFAULT_MASQUERADE_URL}）"
+    echo "2. HTTP/3 本地静态网页伪装"
     echo "3. Salamander 混淆"
     echo
 
-    if prompt_yes_no "是否启用 HTTP/3 网站伪装？"; then
-        while true; do
-            read -r -p "请输入伪装网站（留空默认 ${DEFAULT_MASQUERADE_URL}，输入 0 取消）: " target
-            target="${target:-${DEFAULT_MASQUERADE_URL}}"
-            if [[ "${target}" == "0" ]]; then
-                err "操作已取消"
-                exit 1
-            fi
-            if [[ "${target}" =~ ^https?://[^[:space:]]+$ ]]; then
-                HY2_MODE="masquerade"
-                MASQUERADE_URL="${target}"
-                info "已选择 HTTP/3 网站伪装：${MASQUERADE_URL}"
-                return 0
-            fi
-            warn "伪装网站必须是有效的 http:// 或 https:// 地址"
-        done
+    if prompt_yes_no "是否启用 HTTP/3 本地静态网页伪装？"; then
+        HY2_MODE="masquerade"
+        MASQUERADE_URL="${MASQUERADE_URI}"
+        info "已选择本地静态网页伪装：${MASQUERADE_URL}"
+        return 0
     fi
 
     if prompt_yes_no "是否启用 Salamander 混淆？"; then
@@ -385,6 +374,46 @@ prompt_hy2_mode() {
         HY2_MODE="standard"
         info "已选择标准 HTTP/3 模式（探测返回 404）"
     fi
+}
+
+write_masquerade_site() {
+    local temp_file="${MASQUERADE_INDEX}.tmp.$$"
+
+    [[ "${HY2_MODE}" == "masquerade" ]] || return 0
+    install -d -m 755 "${MASQUERADE_DIR}"
+    if [[ -s "${MASQUERADE_INDEX}" ]]; then
+        chmod 644 "${MASQUERADE_INDEX}"
+        info "复用现有本地静态网页：${MASQUERADE_INDEX}"
+        return 0
+    fi
+
+    cat > "${temp_file}" <<'EOF'
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>404 Not Found</title>
+  <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f5f5f5;color:#222;font:16px/1.5 system-ui,sans-serif}main{text-align:center}h1{margin:0;font-size:72px;font-weight:600}p{margin:8px 0 0;color:#666}</style>
+</head>
+<body><main><h1>404</h1><p>Page not found.</p></main></body>
+</html>
+EOF
+    chmod 644 "${temp_file}"
+    mv -f "${temp_file}" "${MASQUERADE_INDEX}"
+    info "本地静态网页已创建：${MASQUERADE_INDEX}"
+}
+
+cleanup_unused_masquerade_site() {
+    [[ "${HY2_MODE}" != "masquerade" && -d "${MASQUERADE_DIR}" ]] || return 0
+    case "${MASQUERADE_DIR}" in
+        "${MIHOMO_DIR}/masquerade") rm -rf -- "${MASQUERADE_DIR}" ;;
+        *)
+            err "拒绝删除异常的静态网页目录：${MASQUERADE_DIR}"
+            return 1
+            ;;
+    esac
+    info "已删除未使用的本地静态网页目录"
 }
 
 read_old_hop_range() {
@@ -728,10 +757,12 @@ main() {
     read_old_port
     prompt_hop_range
     prompt_hy2_mode
+    write_masquerade_site
     PASSWORD="$(openssl rand -hex 32)"
     backup_configs
     write_protocol_config
     apply_config
+    cleanup_unused_masquerade_site
     remove_old_firewall_rule
     write_hop_state
     write_client_info

@@ -17,6 +17,7 @@ MIHOMO_HY2_HOP_START="20000"
 MIHOMO_HY2_HOP_END="50000"
 MIHOMO_HY2_HOP_STATE="${MIHOMO_DIR}/hysteria2-port-hopping.range"
 MIHOMO_HY2_SELF_SIGNED_DIR="${MIHOMO_DIR}/certs/hysteria2-selfsigned"
+MIHOMO_HY2_MASQUERADE_DIR="${MIHOMO_DIR}/masquerade"
 
 SELECTED_VERSION=""
 
@@ -247,7 +248,7 @@ remove_mihomo_hysteria2_port_hopping(){
     remove_ufw_port_rule "${listener_port}" udp
 }
 
-remove_mihomo_hysteria2_certificate(){
+remove_mihomo_hysteria2_assets(){
     if [[ -d "${MIHOMO_HY2_SELF_SIGNED_DIR}" ]]; then
         case "${MIHOMO_HY2_SELF_SIGNED_DIR}" in
             "${MIHOMO_DIR}/certs/hysteria2-selfsigned") ;;
@@ -259,6 +260,18 @@ remove_mihomo_hysteria2_certificate(){
         rm -rf -- "${MIHOMO_HY2_SELF_SIGNED_DIR}"
         rmdir "${MIHOMO_DIR}/certs" >/dev/null 2>&1 || true
         success "HY2 自签证书、私钥和域名记录已删除；下次安装会生成新的指纹。"
+    fi
+
+    if [[ -d "${MIHOMO_HY2_MASQUERADE_DIR}" ]]; then
+        case "${MIHOMO_HY2_MASQUERADE_DIR}" in
+            "${MIHOMO_DIR}/masquerade") ;;
+            *)
+                error "拒绝删除异常的 HY2 静态网页目录：${MIHOMO_HY2_MASQUERADE_DIR}"
+                return 1
+                ;;
+        esac
+        rm -rf -- "${MIHOMO_HY2_MASQUERADE_DIR}"
+        success "HY2 本地静态网页已删除。"
     fi
 }
 
@@ -274,7 +287,7 @@ uninstall_mihomo_hysteria2(){
         pause
         return
     fi
-    remove_mihomo_hysteria2_certificate
+    remove_mihomo_hysteria2_assets
     success "Mihomo Hysteria2 已卸载。"
     pause
 }
