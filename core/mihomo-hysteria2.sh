@@ -350,9 +350,6 @@ prompt_yes_no() {
 prompt_hy2_mode() {
     echo
     echo "Hysteria2 流量模式："
-    echo "1. 标准 HTTP/3，返回 404（默认）"
-    echo "2. HTTP/3 本地静态网页伪装"
-    echo "3. Salamander 混淆"
     echo
 
     if prompt_yes_no "是否启用 HTTP/3 本地静态网页伪装？"; then
