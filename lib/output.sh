@@ -240,12 +240,6 @@ menu_item(){
     printf "%b%-3s%b %b%s%b\n" "$GREEN" "${num}." "$RESET" "$WHITE" "$text" "$RESET"
 }
 
-menu_action(){
-    local text="$1"
-
-    echo -e "${WHITE}${text}${RESET}"
-}
-
 divider(){
     local color="${1:-$CYAN}"
     local char="${2:-=}"

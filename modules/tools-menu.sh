@@ -91,11 +91,10 @@ vps_test_menu(){
     done
 }
 
-system_reinstall_kernel_menu(){
+system_reinstall_menu(){
     while true; do
-        header "系统重装与内核"
+        header "系统重装"
         menu_item "1" "DD 重装 Debian"
-        menu_item "2" "安装 XanMod 内核（BBRv3）"
         echo
         menu_item "0" "返回"
         echo
@@ -104,7 +103,6 @@ system_reinstall_kernel_menu(){
 
         case "$choice" in
             1) dd_debian ;;
-            2) install_xanmod_kernel ;;
             0) return ;;
             *) error "无效选择。"; pause ;;
         esac
@@ -181,8 +179,8 @@ tools_menu(){
     while true; do
         header "工具箱"
         menu_item "1" "更新工具箱"
-        menu_item "2" "服务器测试（IP、TCP、路由追踪）"
-        menu_item "3" "系统重装与内核（DD 重装、XanMod）"
+        menu_item "2" "系统重装（DD Debian）"
+        menu_item "3" "服务器测试（IP、TCP、路由追踪）"
         menu_item "4" "安全防护（UFW、Fail2Ban、SSH）"
         menu_item "5" "系统维护（虚拟内存、时区、自动更新）"
         menu_item "6" "网络设置（TCP、IPv6、MTU）"
@@ -194,8 +192,8 @@ tools_menu(){
 
         case "$choice" in
             1) update_netkit ;;
-            2) vps_test_menu ;;
-            3) system_reinstall_kernel_menu ;;
+            2) system_reinstall_menu ;;
+            3) vps_test_menu ;;
             4) security_tools_menu ;;
             5) system_tools_menu ;;
             6) network_tools_menu ;;

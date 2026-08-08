@@ -39,49 +39,6 @@ grep -qxF 'noarp' /etc/dhcpcd.conf || echo 'noarp' >> /etc/dhcpcd.conf
 reboot
 ```
 
-### 更换 XanMod 后无法通过 SSH 连接
-
-通过 VNC 以 `root` 登录系统，加载 VirtIO 网卡模块：
-
-```
-modprobe virtio_pci
-modprobe virtio_net
-```
-
-查看网卡：
-
-```
-ip -br link
-```
-
-`ip -br link` 的查询结果中，第一列是网卡名。忽略 `lo`，将另一张网卡的名称记为 `实际网卡名`。启动网卡并获取地址时，把下面的 `实际网卡名` 替换成该名称：
-
-```
-ip link set 实际网卡名 up
-dhcpcd -4 实际网卡名
-```
-
-网络恢复后，此时已经可以使用 SSH 工具重新连接服务器。后续操作可在 SSH 中完成，但不要重启网络服务。先查看原来的网络配置：
-
-```
-cat /etc/network/interfaces
-```
-
-记下文件中原来的网卡名称。执行下一组命令前，按以下规则替换占位内容：
-
-- `原配置网卡名`：`/etc/network/interfaces` 中原来的名称。
-- `实际网卡名`：`ip -br link` 查询到的名称。
-
-```
-sed -i 's/原配置网卡名/实际网卡名/g' /etc/network/interfaces
-
-printf '%s\n' virtio_pci virtio_net > /etc/modules-load.d/dmit-virtio.conf
-
-update-initramfs -u
-
-reboot
-```
-
 ## 致谢
 
 本项目在部分功能中会调用优秀的第三方脚本，在此感谢这些项目和作者的开源贡献：
@@ -95,8 +52,6 @@ reboot
 - [ibsgss/TcpQuality](https://github.com/ibsgss/TcpQuality) 用于 TCP 质量检测。
 
 - [nxtrace/NTrace-core](https://github.com/nxtrace/NTrace-core) 用于大小包路由追踪。
-
-- [XanMod 官方内核](https://xanmod.org/) 用于在受支持的 Debian/Ubuntu x86_64 系统上安装包含 BBRv3 的 XanMod 内核。
 
 这些脚本并非本项目原创，也不包含在本仓库源码中。本项目只是根据用户选择在线调用它们。使用前建议自行查看对应项目源码、说明和许可证，并确认脚本内容符合自己的使用需求。
 
