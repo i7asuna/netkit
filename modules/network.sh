@@ -60,7 +60,9 @@ net.core.rmem_max = 4194304
 net.core.wmem_max = 4194304
 
 net.ipv4.tcp_rmem = 4096 131072 4194304
-net.ipv4.tcp_wmem = 4096 65536 4194304
+net.ipv4.tcp_wmem = 4096 131072 4194304
+
+net.ipv4.tcp_moderate_rcvbuf = 1
 
 net.ipv4.tcp_fastopen = 3
 net.ipv4.tcp_sack = 1
@@ -72,8 +74,8 @@ net.ipv4.tcp_max_syn_backlog = 2048
 
 net.netfilter.nf_conntrack_max = 32768
 net.netfilter.nf_conntrack_udp_timeout = 30
-net.netfilter.nf_conntrack_udp_timeout_stream = 180
-net.netfilter.nf_conntrack_tcp_timeout_established = 3600
+net.netfilter.nf_conntrack_udp_timeout_stream = 120
+net.netfilter.nf_conntrack_tcp_timeout_established = 7200
 
 vm.swappiness = 10
 EOF
@@ -88,25 +90,8 @@ EOF
 
     echo
     section "调优后参数" "$YELLOW"
-    kv "default_qdisc                 :" "$(sysctl -n net.core.default_qdisc 2>/dev/null || echo unknown)"
-    kv "tcp_congestion_control        :" "$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo unknown)"
-    kv "netdev_max_backlog            :" "$(sysctl -n net.core.netdev_max_backlog 2>/dev/null || echo unknown)"
-    kv "somaxconn                     :" "$(sysctl -n net.core.somaxconn 2>/dev/null || echo unknown)"
-    kv "rmem_max                      :" "$(sysctl -n net.core.rmem_max 2>/dev/null || echo unknown)"
-    kv "wmem_max                      :" "$(sysctl -n net.core.wmem_max 2>/dev/null || echo unknown)"
-    kv "tcp_rmem                      :" "$(sysctl -n net.ipv4.tcp_rmem 2>/dev/null || echo unknown)"
-    kv "tcp_wmem                      :" "$(sysctl -n net.ipv4.tcp_wmem 2>/dev/null || echo unknown)"
-    kv "tcp_fastopen                  :" "$(sysctl -n net.ipv4.tcp_fastopen 2>/dev/null || echo unknown)"
-    kv "tcp_sack                      :" "$(sysctl -n net.ipv4.tcp_sack 2>/dev/null || echo unknown)"
-    kv "tcp_window_scaling            :" "$(sysctl -n net.ipv4.tcp_window_scaling 2>/dev/null || echo unknown)"
-    kv "tcp_mtu_probing               :" "$(sysctl -n net.ipv4.tcp_mtu_probing 2>/dev/null || echo unknown)"
-    kv "tcp_slow_start_after_idle     :" "$(sysctl -n net.ipv4.tcp_slow_start_after_idle 2>/dev/null || echo unknown)"
-    kv "tcp_max_syn_backlog           :" "$(sysctl -n net.ipv4.tcp_max_syn_backlog 2>/dev/null || echo unknown)"
-    kv "nf_conntrack_max              :" "$(sysctl -n net.netfilter.nf_conntrack_max 2>/dev/null || echo unknown)"
-    kv "nf_conntrack_udp_timeout      :" "$(sysctl -n net.netfilter.nf_conntrack_udp_timeout 2>/dev/null || echo unknown)"
-    kv "nf_conntrack_udp_stream       :" "$(sysctl -n net.netfilter.nf_conntrack_udp_timeout_stream 2>/dev/null || echo unknown)"
-    kv "nf_conntrack_tcp_established  :" "$(sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established 2>/dev/null || echo unknown)"
-    kv "swappiness                    :" "$(sysctl -n vm.swappiness 2>/dev/null || echo unknown)"
+    echo "BBR:   $(sysctl -n net.ipv4.tcp_congestion_control)"
+    echo "Qdisc: $(sysctl -n net.core.default_qdisc)"
     pause
 }
 
