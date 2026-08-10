@@ -36,7 +36,6 @@ ensure_dependencies(){
 check_reality_target(){
     local host="$1"
     local http_version=""
-    local curl_output=""
 
     info "正在检查 Reality 目标站点..."
 
@@ -45,24 +44,22 @@ check_reality_target(){
         return 2
     fi
 
-    curl_output=$(
-        curl -Iv --http2 --tlsv1.3 --tls-max 1.3 \
-            --connect-timeout 5 --max-time 10 \
-            "https://${host}" 2>&1 || true
-    )
-    http_version=$(
+    if ! http_version=$(
         curl -sSI --http2 --tlsv1.3 --tls-max 1.3 \
             --connect-timeout 5 --max-time 10 \
             -o /dev/null -w "%{http_version}" \
-            "https://${host}" || true
-    )
+            "https://${host}"
+    ); then
+        warning "目标站点 TLS 1.3 连接失败。"
+        return 1
+    fi
 
-    if echo "$curl_output" | grep -qi "TLSv1\.3" && [[ "$http_version" == "2" ]]; then
+    if [[ "$http_version" == "2" || "$http_version" == "2.0" ]]; then
         success "Reality 目标站点检查通过：TLS 1.3 / HTTP2 可用。"
         return 0
     fi
 
-    warning "目标站点未通过 TLS 1.3 / HTTP2 检查。"
+    warning "目标站点已连接 TLS 1.3，但实际 HTTP 版本为：${http_version:-unknown}"
     return 1
 }
 
