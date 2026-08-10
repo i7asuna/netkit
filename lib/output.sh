@@ -187,7 +187,7 @@ yaml_quote(){
 }
 
 normalize_reality_sni(){
-    local host="${1:-www.akamai.com}"
+    local host="${1:-www.amphenol.com}"
 
     host="${host#https://}"
     host="${host#http://}"
