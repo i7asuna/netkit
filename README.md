@@ -28,17 +28,6 @@ asuna
 
 进入 NetKit 管理菜单。
 
-## DMIT 网络恢复
-
-### DD Debian 13 后无法通过 SSH 连接
-
-如果 DD Debian 13 后无法联网，可以通过 VNC 登录系统后执行：
-
-```bash
-grep -qxF 'noarp' /etc/dhcpcd.conf || echo 'noarp' >> /etc/dhcpcd.conf
-reboot
-```
-
 ## 致谢
 
 本项目在部分功能中会调用优秀的第三方脚本，在此感谢这些项目和作者的开源贡献：
