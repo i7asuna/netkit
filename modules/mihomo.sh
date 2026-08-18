@@ -28,7 +28,7 @@ select_mihomo_version(){
     SELECTED_VERSION=""
 
     echo
-    read -r -p "$(prompt_text "请输入 Mihomo 正式稳定版版本号（回车使用最新稳定版，输入 0 取消）: ")" input
+    read -e -r -p "$(prompt_text "请输入 Mihomo 正式稳定版版本号（回车使用最新稳定版，输入 0 取消）: ")" input
     input=$(trim_edges "$input")
 
     cancel_input "$input" && return "$INPUT_CANCEL_STATUS"
@@ -479,7 +479,7 @@ mihomo_menu(){
         menu_item "0" "返回主菜单"
         echo
 
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in

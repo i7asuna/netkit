@@ -245,7 +245,7 @@ prepare_self_signed_certificate() {
     local has_existing=0
 
     while true; do
-        read -r -p "请输入自签证书域名 / SNI（无需 DNS 解析，输入 0 取消）：" input
+        read -e -r -p "请输入自签证书域名 / SNI（无需 DNS 解析，输入 0 取消）：" input
         if [[ "${input}" == "0" ]]; then
             err "操作已取消"
             exit 1
@@ -302,7 +302,7 @@ prompt_hop_range() {
     fi
 
     while true; do
-        read -r -p "请输入 HY2 跳跃端口范围（${HOP_MIN}-${HOP_MAX} 内，默认 ${default_range}，输入 0 取消）: " input
+        read -e -r -p "请输入 HY2 跳跃端口范围（${HOP_MIN}-${HOP_MAX} 内，默认 ${default_range}，输入 0 取消）: " input
         input="${input:-${default_range}}"
         if [[ "${input}" == "0" ]]; then
             err "操作已取消"
@@ -338,7 +338,7 @@ prompt_yes_no() {
     local answer=""
 
     while true; do
-        read -r -p "${message} [y/N]: " answer
+        read -e -r -p "${message} [y/N]: " answer
         case "${answer}" in
             ""|[Nn]) return 1 ;;
             [Yy]) return 0 ;;

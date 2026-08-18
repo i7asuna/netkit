@@ -87,7 +87,7 @@ swap_menu(){
         echo
         menu_item "0" "返回"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in

@@ -40,7 +40,7 @@ run_ip_quality_test(){
         fi
 
         echo
-        read -r -p "$(prompt_text "按 Enter 删除 IP 质量检测脚本...")"
+        read -e -r -p "$(prompt_text "按 Enter 删除 IP 质量检测脚本...")"
         rm -rf -- "$temp_dir"
         temp_dir=""
         success "IP 质量检测脚本已删除。"
@@ -80,7 +80,7 @@ run_tcp_quality_test(){
         bash ./runTcpQuality.sh || status=$?
 
         echo
-        read -r -p "$(prompt_text "按 Enter 删除 TCP 质量检测脚本...")"
+        read -e -r -p "$(prompt_text "按 Enter 删除 TCP 质量检测脚本...")"
         rm -rf -- "$temp_dir"
         temp_dir=""
         success "TCP 质量检测脚本已删除。"
@@ -177,7 +177,7 @@ run_nexttrace_packet_trace(){
     fi
 
     header "NextTrace ${packet_size} 字节追踪"
-    read -r -p "$(prompt_text "请输入目标 IP 或域名（输入 0 返回）: ")" target
+    read -e -r -p "$(prompt_text "请输入目标 IP 或域名（输入 0 返回）: ")" target
     cancel_input "$target" && return
 
     if [[ -z "$target" ]]; then
@@ -197,7 +197,7 @@ run_nexttrace_custom_packet_trace(){
     local packet_size
 
     header "NextTrace 自定义包大小"
-    read -r -p "$(prompt_text "请输入包大小（64-65535 字节，输入 0 返回）: ")" packet_size
+    read -e -r -p "$(prompt_text "请输入包大小（64-65535 字节，输入 0 返回）: ")" packet_size
     cancel_input "$packet_size" && return
 
     if ! valid_nexttrace_packet_size "$packet_size"; then
@@ -222,7 +222,7 @@ nexttrace_packet_menu(){
         echo
         menu_item "0" "返回"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in

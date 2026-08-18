@@ -44,7 +44,7 @@ ufw_batch_add_port(){
         return
     fi
 
-    read -r -p "$(prompt_text "请输入要允许的端口（多个用空格分隔，输入 0 取消）: ")" input
+    read -e -r -p "$(prompt_text "请输入要允许的端口（多个用空格分隔，输入 0 取消）: ")" input
     cancel_input "$input" && return
     [[ -z "$input" ]] && error "端口不能为空。" && pause && return
     reject_comma_separator "$input" || return
@@ -145,7 +145,7 @@ ufw_batch_delete_port(){
     done
 
     echo
-    read -r -p "$(prompt_text "请输入要删除的序号（多个用空格分隔，0 取消）: ")" input
+    read -e -r -p "$(prompt_text "请输入要删除的序号（多个用空格分隔，0 取消）: ")" input
     input=$(trim_edges "$input")
     cancel_input "$input" && return
 
@@ -206,7 +206,7 @@ ufw_batch_add_ip(){
         return
     fi
 
-    read -r -p "$(prompt_text "请输入要允许的 IP/CIDR（多个用空格分隔，输入 0 取消）: ")" input
+    read -e -r -p "$(prompt_text "请输入要允许的 IP/CIDR（多个用空格分隔，输入 0 取消）: ")" input
     cancel_input "$input" && return
     [[ -z "$input" ]] && error "IP 不能为空。" && pause && return
     reject_comma_separator "$input" || return
@@ -236,7 +236,7 @@ ufw_batch_delete_ip(){
         return
     fi
 
-    read -r -p "$(prompt_text "请输入要删除的 IP/CIDR（多个用空格分隔，输入 0 取消）: ")" input
+    read -e -r -p "$(prompt_text "请输入要删除的 IP/CIDR（多个用空格分隔，输入 0 取消）: ")" input
     cancel_input "$input" && return
     [[ -z "$input" ]] && error "IP 不能为空。" && pause && return
     reject_comma_separator "$input" || return
@@ -309,7 +309,7 @@ ufw_menu(){
         echo
         menu_item "0" "返回"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in

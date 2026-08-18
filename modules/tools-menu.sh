@@ -78,7 +78,7 @@ vps_test_menu(){
         echo
         menu_item "0" "返回"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in
@@ -98,7 +98,7 @@ system_reinstall_menu(){
         echo
         menu_item "0" "返回"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in
@@ -118,7 +118,7 @@ security_tools_menu(){
         echo
         menu_item "0" "返回"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in
@@ -140,7 +140,7 @@ system_tools_menu(){
         echo
         menu_item "0" "返回"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in
@@ -162,7 +162,7 @@ network_tools_menu(){
         echo
         menu_item "0" "返回"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in
@@ -187,7 +187,7 @@ tools_menu(){
         echo
         menu_item "0" "返回主菜单"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in

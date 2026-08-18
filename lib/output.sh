@@ -10,7 +10,7 @@ INPUT_CANCEL_STATUS=10
 
 pause(){
     echo
-    read -r -p "$(prompt_text "Press Enter to continue...")"
+    read -e -r -p "$(prompt_text "Press Enter to continue...")"
 }
 
 info(){
@@ -40,7 +40,7 @@ confirm_action(){
     local message="$1"
     local answer
 
-    read -r -p "$(prompt_text "${message} [y/N]: ")" answer
+    read -e -r -p "$(prompt_text "${message} [y/N]: ")" answer
     [[ "$answer" =~ ^[Yy]$ ]]
 }
 

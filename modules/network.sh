@@ -18,7 +18,7 @@ system_tuning(){
         echo
         menu_item "0" "返回"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in
@@ -294,7 +294,7 @@ configure_mtu(){
         label "Current MTU:"
         value "$current_mtu"
         echo
-        read -r -p "$(prompt_text "Enter MTU [default: ${MTU_VALUE}, 0 to cancel]: ")" new_mtu
+        read -e -r -p "$(prompt_text "Enter MTU [default: ${MTU_VALUE}, 0 to cancel]: ")" new_mtu
         cancel_input "$new_mtu" && return
         new_mtu=${new_mtu:-$MTU_VALUE}
 
@@ -394,7 +394,7 @@ ipv6_menu(){
         echo
         menu_item "0" "返回"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in

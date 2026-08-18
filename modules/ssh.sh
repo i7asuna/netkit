@@ -118,7 +118,7 @@ set_ssh_port(){
         return
     fi
 
-    read -r -p "$(prompt_text "请输入新的 SSH 端口（输入 0 取消）: ")" ssh_port
+    read -e -r -p "$(prompt_text "请输入新的 SSH 端口（输入 0 取消）: ")" ssh_port
     cancel_input "$ssh_port" && return
 
     if ! valid_port "$ssh_port"; then
@@ -176,7 +176,7 @@ set_ssh_key(){
         return
     fi
 
-    read -r -p "$(prompt_text "请输入 SSH 公钥（输入 0 取消）: ")" public_key
+    read -e -r -p "$(prompt_text "请输入 SSH 公钥（输入 0 取消）: ")" public_key
     cancel_input "$public_key" && return
 
     if [[ -z "$public_key" ]]; then
@@ -218,7 +218,7 @@ ssh_menu(){
         echo
         menu_item "0" "返回"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in

@@ -45,7 +45,7 @@ main_menu(){
         menu_item "0" "退出"
         echo
 
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in

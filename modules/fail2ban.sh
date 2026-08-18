@@ -107,7 +107,7 @@ fail2ban_unban_ip(){
         return
     fi
 
-    read -r -p "$(prompt_text "请输入要解封的 IP（输入 0 取消）: ")" ip
+    read -e -r -p "$(prompt_text "请输入要解封的 IP（输入 0 取消）: ")" ip
     cancel_input "$ip" && return
 
     if [[ -z "$ip" ]]; then
@@ -136,7 +136,7 @@ fail2ban_menu(){
         echo
         menu_item "0" "返回"
         echo
-        read -r -p "$(prompt_text "请选择: ")" choice
+        read -e -r -p "$(prompt_text "请选择: ")" choice
         choice=${choice:-0}
 
         case "$choice" in
